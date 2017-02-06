@@ -1,0 +1,49 @@
+#menu "Applications"
+
+config BR2_PACKAGE_APPLICATIONS
+	bool "NUC970 Applications"
+	help
+	  Enable this option if you want to build a nuc970 application for
+	  your embedded device
+
+if BR2_PACKAGE_APPLICATIONS
+
+#config BR2_APPLICATIONS_CUSTOM_REPO_URL
+#        string "URL of custom repository"
+#        default BR2_APPLICATION_CUSTOM_GIT_REPO_URL \
+#                if BR2_APPLICATION_CUSTOM_GIT_REPO_URL != ""  # legacy
+
+#config BR2_APPLICATIONS_CUSTOM_REPO_VERSION
+#        string "Custom repository version"
+#        default BR2_APPLICATION_CUSTOM_GIT_VERSION \
+#                if BR2_APPLICATION_CUSTOM_GIT_VERSION != ""  # legacy
+#        help
+#          Revision to use in the typical format used by Git/Mercurial/Subversion
+#          E.G. a sha id, a tag, branch, ..
+
+
+# Packages that need to have a kernel with support for loadable modules,
+# but do not use the kernel-modules infrastructure, should select that
+# option.
+config APPLICATIONS_BUILD_DEMOS
+	bool "Demos"
+	help
+
+config APPLICATIONS_BUILD_PYTHON
+	bool "Python-2.7.9"
+
+#config APPLICATIONS_BUILD_QT
+#        bool "QT-everywhere-opensource-src-4.8.5"
+
+config APPLICATIONS_BUILD_YAFFS2UTILS
+        bool "Yaffs2utils"
+
+#config APPLICATIONS_BUILD_ETHTOOL
+#        bool "Ethtool-4.6"
+
+config APPLICATIONS_BUILD_MINIGUI
+        bool "Minigui"
+
+endif # BR2_PACKAGE_APPLICATIONS
+
+#endmenu

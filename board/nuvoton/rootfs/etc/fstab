@@ -1,0 +1,5 @@
+proc  /proc      proc    defaults     0      0
+none  /var/shm   shm     defaults     0      0
+sysfs /sys       sysfs   defaults     0      0
+none  /tmp   ramfs     defaults     0      0
+none  /mnt   ramfs     defaults     0      0

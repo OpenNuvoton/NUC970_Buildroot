@@ -1,0 +1,11 @@
+#!/bin/sh
+/bin/mount -t proc none /proc
+/bin/mount -t sysfs sysfs /sys
+/bin/mount -t ramfs /tmp
+/bin/mount -t ramfs /mnt
+#/bin/mkdir /mnt/pts
+#/bin/mount -t devpts devpts /dev/pts
+/bin/echo > /dev/mdev.seq
+/bin/echo /bin/mdev > /proc/sys/kernel/hotplug
+/bin/mdev -s
+
