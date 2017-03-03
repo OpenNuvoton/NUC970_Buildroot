@@ -23,6 +23,16 @@
 # now run any rc scripts
 ::sysinit:/etc/init.d/rcS
 
+# /bin/sh invocations on selected ttys
+#
+# Note below that we prefix the shell commands with a "-" to indicate to the
+# shell that it is supposed to be a login shell.  Normally this is handled by
+# login, but since we are bypassing login in this case, BusyBox lets you do
+# this yourself...
+#
+# Start an "askfirst" shell on the console (whatever that may be)
+::once:-/bin/sh
+
 # Put a getty on the serial port
 #ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100 # GENERIC_SERIAL
 

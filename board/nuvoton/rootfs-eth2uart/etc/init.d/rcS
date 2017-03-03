@@ -11,7 +11,8 @@
 ifconfig eth0 192.168.0.100
 ifconfig eth1 192.168.10.100
 route add default gw 192.168.0.100
-/usr/local/sbin/arm-linux-lighttpd start -f /usr/local/sbin/lighttpd.conf
+mkdir -p /var/log/lighttpd/
+/usr/sbin/lighttpd start -f /usr/local/sbin/lighttpd.conf
 eth2uart &
 
 

@@ -1,0 +1,19 @@
+<html>
+<head>
+<title>
+</title>
+</head>
+<body bgcolor="PINK" text="BLUE" link="#0066cc" vlink="#336600">
+<font face="Arial" color="#cc33ff" size="7"><b><i> NUC972 UART settings:</b></i><BR>
+<FORM METHOD="GET" ACTION="http://192.168.0.100/cgi-bin/uart2.cgi"> 
+Port<INPUT SIZE=10 VALUE= "2" NAME="ur_port">(1~10)<BR> 
+Baudrate<INPUT SIZE=10 VALUE= "115200" NAME="ur_baud">bps<BR> 
+Data<INPUT SIZE=10 VALUE = "8" NAME="ur_data">(8 or 7 bits)<BR> 
+Parity<INPUT SIZE=10 VALUE = "0" NAME="ur_parity">(0:none, 1:odd, 2:even)<BR> 
+Stop<INPUT SIZE=10 VALUE = "1" NAME="ur_stop">(1 or 2 bits)<BR> 
+Flow Control<INPUT SIZE=10 VALUE = "0" NAME="ur_flow">(0:none, 1:hardware, 2:Xon/Xoff)<BR> 
+<INPUT TYPE="submit" VALUE="Submit"> 
+<INPUT TYPE="reset" VALUE="Reset"> 
+</FORM>
+</body>
+</html>

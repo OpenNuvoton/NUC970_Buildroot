@@ -1,0 +1,9 @@
+<html>
+<head>
+<title>
+</title>
+</head>
+<body bgcolor="PINK" text="BLUE" link="#0066cc" vlink="#336600">
+<font face="Arial" color="#cc33ff" size="7"><b><i>Hello! NUC972!</b></i>
+</body>
+</html>

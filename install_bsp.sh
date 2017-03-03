@@ -136,39 +136,12 @@ do
 done
 
 # Check toolchain environment setting in NVTFILE
-if [ $RES == 0 ]; then
-        if [ -f $NVTFILE ]; then
-                cat $NVTFILE | grep "^[ ]*export PATH=$ARM_TOOL_PATH/bin" > /dev/null
-                if [ $? == 0 ]; then
-                        RES=1
-                fi
-        fi
+if [ -f $NVTFILE ]; then
+	rm $NVTFILE
 fi
-
-if [ $RES == 1 ]; then
-        echo > /dev/null
-else
-        if [ -f $NVTFILE ]; then
-                cat $NVTFILE | grep  "^[ ]*export " > /dev/null
-                if [ $? == 0 ]; then
-                        ARM_TOOL_PATH_TMP=`echo $ARM_TOOL_PATH | sed -e 's/\//\\\\\//g'`
-                        cat $NVTFILE | grep  "^[ ]*export " | grep "$ARM_TOOL_PATH/bin" > /dev/null
-                        if [ $? == 0 ]; then
-                                sed -e 's/'$ARM_TOOL_PATH_TMP'\/bin[/]*://' $NVTFILE > $TMPFILE
-                                cp -f $TMPFILE $NVTFILE
-                        fi
-                        sed -e 's/PATH=/PATH='$ARM_TOOL_PATH_TMP'\/bin:/' $NVTFILE > $TMPFILE
-                        cp -f $TMPFILE $NVTFILE
-                        rm -f $TMPFILE
-                else
-                        echo 'export PATH='$ARM_TOOL_PATH'/bin:$PATH' >> $NVTFILE
-                fi
-        else
-                echo '## Nuvoton toolchain environment export' >> $NVTFILE
-                echo 'export PATH='$ARM_TOOL_PATH'/bin:$PATH' >> $NVTFILE
-                chmod +x $NVTFILE
-        fi
-fi
+echo '## Nuvoton toolchain environment export' >> $NVTFILE
+echo 'export PATH='$ARM_TOOL_PATH'/bin:$PATH' >> $NVTFILE
+chmod +x $NVTFILE
 
 echo "Installing $ARM_TOOL_NANE toolchain successfully"
 

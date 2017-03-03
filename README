@@ -7,7 +7,7 @@ Online documentation can be found at http://buildroot.org/docs.html
 
 To build and use the buildroot stuff, do the following:
 
-1) run 'make nuvoton_nuc970_defconfig'
+1) run 'make nuvoton_nuc972_defconfig'
 2) select the target architecture and the packages you wish to compile
 3) run 'make'
 4) wait while it compiles
@@ -20,6 +20,9 @@ to modify buildroot parameters.
 
 Buildroot comes with a basic configuration for a number of boards. Run
 'make list-defconfigs' to view the list of provided configurations.
+
+If users need to install nuc970_bsp , user need to be root to run 
+'./install_bsp.sh' to install nuc970_bsp.
 
 Please feed suggestions, bug reports, insults, and bribes back to the
 buildroot mailing list: buildroot@buildroot.org

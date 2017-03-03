@@ -1,0 +1,17 @@
+<html>
+<head>
+<title>
+</title>
+</head>
+<body bgcolor="PINK" text="BLUE" link="#0066cc" vlink="#336600">
+<font face="Arial" color="#cc33ff" size="7"><b><i>Hello! NUC972!</b></i>
+<FORM METHOD="GET" ACTION="http://192.168.0.100/cgi-bin/adc_pwm.cgi"> 
+PWM channel<INPUT SIZE=10 NAME="pwm_ch">(0~3)<BR> 
+PWM period<INPUT SIZE=10 NAME="period">ns<BR> 
+PWM duty<INPUT SIZE=10 NAME="duty">ns<BR> 
+ADC channel<INPUT SIZE=10 NAME="adc_ch">(0~7)<BR> 
+<INPUT TYPE="submit" VALUE="Submit"> 
+<INPUT TYPE="reset" VALUE="Reset"> 
+</FORM>
+</body>
+</html>
