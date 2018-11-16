@@ -339,11 +339,15 @@ define LINUX_BUILD_CMDS
 	$(if $(BR2_LINUX_KERNEL_USE_CUSTOM_DTS),
 		cp -f $(call qstrip,$(BR2_LINUX_KERNEL_CUSTOM_DTS_PATH)) $(KERNEL_ARCH_PATH)/boot/dts/)
 	@if grep -q "CONFIG_ARCH_NUC970=y" $(@D)/.config; then  \
-	mkdir -p $(@D)/../image; \
+		mkdir -p $(@D)/../image; \
 		$(LINUX_MAKE_ENV) $(MAKE) CONFIG_INITRAMFS_SOURCE="../../images/rootfs.cpio" $(LINUX_MAKE_FLAGS) -C $(@D) $(LINUX_TARGET_NAME); \
+	elif grep -q "CONFIG_ARCH_NUC980=y" $(@D)/.config; then  \
+		mkdir -p $(@D)/../image; \
+                $(LINUX_MAKE_ENV) $(MAKE) CONFIG_INITRAMFS_SOURCE="../../images/rootfs.cpio" $(LINUX_MAKE_FLAGS) -C $(@D) $(LINUX_TARGET_NAME); \
 	else \
 		$(LINUX_MAKE_ENV) $(MAKE) $(LINUX_MAKE_FLAGS) -C $(@D) $(LINUX_TARGET_NAME); \
 	fi
+
 	@if grep -q "CONFIG_MODULES=y" $(@D)/.config; then 	\
 		$(LINUX_MAKE_ENV) $(MAKE) $(LINUX_MAKE_FLAGS) -C $(@D) modules ;	\
 	fi

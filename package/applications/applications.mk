@@ -5,8 +5,10 @@
 ################################################################################
 
 
-export $(grep "BR2_APPLICATIONS_CUSTOM_REPO_VERSION=" $(@D)/../../.config)
+export $(grep "BR2_PACKAGE_APPLICATIONS=" $(@D)/../../.config)
+export $(grep "BR2_PACKAGE_NUC980_APPLICATIONS=" $(@D)/../../.config)
 
+ifeq ($(BR2_PACKAGE_APPLICATIONS),y)
 APPLICATIONS_VERSION=1.0.0
 APPLICATIONS_SITE=$(call github,OpenNuvoton,NUC970_Linux_Applications,master)
 APPLICATIONS_LICENSE=MIT
@@ -86,6 +88,49 @@ define APPLICATIONS_INSTALL_TARGET_CMDS
 	done; \
 	fi
 endef
+
+endif
+
+ifeq ($(BR2_PACKAGE_NUC980_APPLICATIONS),y)
+APPLICATIONS_VERSION=1.0.0
+APPLICATIONS_SITE=$(call github,OpenNuvoton,NUC980_Linux_Applications,master)
+APPLICATIONS_LICENSE=MIT
+APPLICATIONS_LICENSE_FILES=LICENSE
+APPLICATIONS_MAKE_ENV=
+APPLICATIONS_MAKE_FLAGS=
+
+NUC980_SUBDIRS=	demos/CAN \
+                demos/alsa_audio \
+                demos/cap \
+                demos/crypto \
+                demos/ebi \
+                demos/etimer \
+                demos/gpio \
+                demos/irda \
+                demos/rs485 \
+                demos/rtc \
+                demos/sc \
+                demos/spi \
+                demos/uart \
+                demos/wdt \
+                demos/wwdt
+
+NUC980_YAFFS2_DIRS=yaffs2utils
+define APPLICATIONS_BUILD_CMDS
+        @if grep -q "NUC980_APPLICATIONS_BUILD_DEMOS=y" $(@D)/../../../.config; then \
+                for subdir in $(NUC980_SUBDIRS) ; do \
+                        ( cd $(@D)/$$subdir && $(MAKE) $1) || exit 1; \
+                done; \
+        fi
+
+        @if grep -q "NUC980_APPLICATIONS_YAFFS2UTILS=y" $(@D)/../../../.config; then \
+                for subdir in $(NUC980_YAFFS2_DIRS) ; do \
+                        ( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
+                done; \
+        fi
+endef
+
+endif
 
 $(eval $(generic-package))
 
