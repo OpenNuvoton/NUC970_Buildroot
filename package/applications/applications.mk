@@ -113,6 +113,7 @@ NUC980_SUBDIRS=	demos/CAN \
                 demos/spi \
                 demos/uart \
                 demos/wdt \
+                demos/eth2uart \
                 demos/wwdt
 
 NUC980_YAFFS2_DIRS=yaffs2utils
