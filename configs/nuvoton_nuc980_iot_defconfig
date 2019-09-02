@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot 2016.11.1-g600a114-dirty Configuration
+# Buildroot 2016.11.1-gff4ccf9-dirty Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 BR2_HOST_GCC_AT_LEAST_4_5=y
@@ -1786,7 +1786,9 @@ BR2_PACKAGE_MONGREL2_LIBC_SUPPORTS=y
 # BR2_PACKAGE_PHIDGETWEBSERVICE is not set
 # BR2_PACKAGE_PORTMAP is not set
 # BR2_PACKAGE_POUND is not set
-# BR2_PACKAGE_PPPD is not set
+BR2_PACKAGE_PPPD=y
+# BR2_PACKAGE_PPPD_FILTER is not set
+# BR2_PACKAGE_PPPD_RADIUS is not set
 # BR2_PACKAGE_PPTP_LINUX is not set
 # BR2_PACKAGE_PRIVOXY is not set
 # BR2_PACKAGE_PROFTPD is not set
