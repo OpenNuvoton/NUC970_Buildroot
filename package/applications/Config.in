@@ -1,12 +1,20 @@
 #menu "Applications"
 
 config BR2_PACKAGE_APPLICATIONS
+	bool "Applications"
+	help
+	  Enable this option if you want to build a application for
+	  your embedded device
+
+if BR2_PACKAGE_APPLICATIONS
+
+config NUC970_APPLICATIONS
 	bool "NUC970 Applications"
 	help
 	  Enable this option if you want to build a nuc970 application for
 	  your embedded device
 
-if BR2_PACKAGE_APPLICATIONS
+if NUC970_APPLICATIONS
 
 #config BR2_APPLICATIONS_CUSTOM_REPO_URL
 #        string "URL of custom repository"
@@ -46,13 +54,13 @@ config APPLICATIONS_BUILD_MINIGUI
 
 endif # BR2_PACKAGE_APPLICATIONS
 
-config BR2_PACKAGE_NUC980_APPLICATIONS
+config NUC980_APPLICATIONS
         bool "NUC980 Applications"
         help
           Enable this option if you want to build a nuc980 application for
           your embedded device
 
-if BR2_PACKAGE_NUC980_APPLICATIONS
+if NUC980_APPLICATIONS
 
 config NUC980_APPLICATIONS_BUILD_DEMOS
         bool "Demos"
@@ -64,3 +72,5 @@ config NUC980_APPLICATIONS_BUILD_YAFFS2UTILS
 endif #BR2_PACKAGE_NUC980_APPLICATIONS
 
 #endmenu
+
+endif

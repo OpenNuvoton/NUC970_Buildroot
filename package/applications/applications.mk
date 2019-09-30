@@ -6,9 +6,10 @@
 
 
 export $(grep "BR2_PACKAGE_APPLICATIONS=" $(@D)/../../.config)
-export $(grep "BR2_PACKAGE_NUC980_APPLICATIONS=" $(@D)/../../.config)
+export $(grep "NUC970_APPLICATIONS=" $(@D)/../../.config)
+export $(grep "NUC980_APPLICATIONS=" $(@D)/../../.config)
 
-ifeq ($(BR2_PACKAGE_APPLICATIONS),y)
+ifeq ($(NUC970_APPLICATIONS),y)
 APPLICATIONS_VERSION=1.0.0
 APPLICATIONS_SITE=$(call github,OpenNuvoton,NUC970_Linux_Applications,master)
 APPLICATIONS_LICENSE=MIT
@@ -47,7 +48,7 @@ MINIGUI_APP_SUBDIRS=minigui/mg-samples-3.0.12
 
 SETUPPATH=$(PWD)/$(MTD_DIRS)/install
 
-PATH += :$(HOST_DIR)/usr/bin
+PATH := $(PATH):$(HOST_DIR)/usr/bin
 
 define APPLICATIONS_BUILD_CMDS
 	@if grep -q "APPLICATIONS_BUILD_DEMOS=y" $(@D)/../../../.config; then \
@@ -91,7 +92,7 @@ endef
 
 endif
 
-ifeq ($(BR2_PACKAGE_NUC980_APPLICATIONS),y)
+ifeq ($(NUC980_APPLICATIONS),y)
 APPLICATIONS_VERSION=1.0.0
 APPLICATIONS_SITE=$(call github,OpenNuvoton,NUC980_Linux_Applications,master)
 APPLICATIONS_LICENSE=MIT
@@ -117,6 +118,9 @@ NUC980_SUBDIRS=	demos/CAN \
                 demos/wwdt
 
 NUC980_YAFFS2_DIRS=yaffs2utils
+
+PATH := $(PATH):$(HOST_DIR)/usr/bin
+
 define APPLICATIONS_BUILD_CMDS
         @if grep -q "NUC980_APPLICATIONS_BUILD_DEMOS=y" $(@D)/../../../.config; then \
                 for subdir in $(NUC980_SUBDIRS) ; do \
