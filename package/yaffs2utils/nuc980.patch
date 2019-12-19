@@ -1,0 +1,1517 @@
+diff -Nru host-yaffs2utils-0.2.9/Makefile yaffs2utils/Makefile
+--- host-yaffs2utils-0.2.9/Makefile	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/Makefile	2019-12-19 12:52:45.443364053 +0800
+@@ -22,7 +22,7 @@
+ CC		= $(CROSS)gcc
+ 
+ CFLAGS		=  -I. -I./yaffs2
+-CFLAGS		+= -O2
++CFLAGS		+= -O2 -D_HAVE_BROKEN_MTD_H
+ CFLAGS		+= -Wall -Wshadow -Winline -Wpointer-arith -Wnested-externs \
+ 		   -Wwrite-strings -Wstrict-prototypes -Wmissing-declarations \
+ 		   -Wmissing-prototypes -Wredundant-decls
+diff -Nru host-yaffs2utils-0.2.9/mkyaffs2.c yaffs2utils/mkyaffs2.c
+--- host-yaffs2utils-0.2.9/mkyaffs2.c	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/mkyaffs2.c	2019-12-19 12:52:45.443364053 +0800
+@@ -58,6 +58,7 @@
+ #define MKYAFFS2_FLAGS_YAFFSECC	(1 << 18)
+ #define MKYAFFS2_FLAGS_ALLROOT	(1 << 19)
+ #define MKYAFFS2_FLAGS_VERBOSE	(1 << 20)
++#define MKYAFFS2_FLAGS_NUC970ECC	(1 << 21)
+ 
+ #define MKYAFFS2_ISSHOWBAR	(mkyaffs2_flags & MKYAFFS2_FLAGS_SHOWBAR)
+ #define MKYAFFS2_ISYAFFS1	(mkyaffs2_flags & MKYAFFS2_FLAGS_YAFFS1)
+@@ -65,14 +66,19 @@
+ #define MKYAFFS2_ISYAFFSECC	(mkyaffs2_flags & MKYAFFS2_FLAGS_YAFFSECC)
+ #define MKYAFFS2_ISALLROOT	(mkyaffs2_flags & MKYAFFS2_FLAGS_ALLROOT)
+ #define MKYAFFS2_ISVERBOSE	(mkyaffs2_flags & MKYAFFS2_FLAGS_VERBOSE)
++#define MKYAFFS2_ISNUC970ECC	(mkyaffs2_flags & MKYAFFS2_FLAGS_NUC970ECC)
+ 
+-#define MKYAFFS2_PRINT(s, args...) \
++#define MKYAFFS2_PRINTF(s, args...) \
+ 		do { \
++			if (!MKYAFFS2_ISVERBOSE && MKYAFFS2_ISSHOWBAR) { \
++				mkyaffs2_flags &= ~MKYAFFS2_FLAGS_SHOWBAR; \
++				fprintf(stdout, "\n"); \
++			} \
+ 			fprintf(stdout, s, ##args); \
+ 			fflush(stdout); \
+ 		} while (0)
+ 
+-#define MKYAFFS2_ERROR(s, args...) \
++#define MKYAFFS2_ERROR_PRINTF(s, args...) \
+ 		do { \
+ 			if (!MKYAFFS2_ISVERBOSE && MKYAFFS2_ISSHOWBAR) { \
+ 				mkyaffs2_flags &= ~MKYAFFS2_FLAGS_SHOWBAR; \
+@@ -82,12 +88,18 @@
+ 			fflush(stderr); \
+ 		} while (0)
+ 
+-#define MKYAFFS2_HELP(s, args...)	MKYAFFS2_PRINT(s, ##args)
+-#define MKYAFFS2_WARN(s, args...)	MKYAFFS2_ERROR(s, ##args)
++#define MKYAFFS2_HELP(s, args...) \
++		MKYAFFS2_PRINTF(s, ##args)
++
++#define MKYAFFS2_WARN(s, args...) \
++		MKYAFFS2_ERROR_PRINTF(s, ##args)
++
++#define MKYAFFS2_ERROR(s, args...) \
++		MKYAFFS2_ERROR_PRINTF(s, ##args)
+ 
+ #ifdef _MKYAFFS2_DEBUG
+-#define MKYAFFS2_DEBUG(s, args...)	MKYAFFS2_ERROR("%s: " s, \
+-						       __FUNCTION__, ##args)
++#define MKYAFFS2_DEBUG(s, args...) \
++		MKYAFFS2_ERROR_PRINTF("%s: " s, __FUNCTION__, ##args)
+ #else
+ #define MKYAFFS2_DEBUG(s, args...)
+ #endif
+@@ -95,7 +107,7 @@
+ #define MKYAFFS2_VERBOSE(s, args...) \
+ 		do { \
+ 			if (MKYAFFS2_ISVERBOSE) \
+-				MKYAFFS2_PRINT(s, ##args); \
++				MKYAFFS2_PRINTF(s, ##args); \
+ 		} while (0)
+ 
+ #define MKYAFFS2_PROGRESS_INIT() \
+@@ -139,9 +151,12 @@
+ 
+ static unsigned mkyaffs2_flags = 0;
+ 
++static unsigned mkyaffs2_inband_tags = 0;
+ static unsigned mkyaffs2_chunksize = 0;
+ static unsigned mkyaffs2_sparesize = 0;
+ 
++static unsigned mkyaffs2_nuc970bch = 0;
++
+ static unsigned mkyaffs2_image_obj_id = YAFFS_NOBJECT_BUCKETS;
+ static unsigned mkyaffs2_image_objs = 0;
+ static unsigned mkyaffs2_image_pages = 0;
+@@ -150,8 +165,7 @@
+ 
+ static char mkyaffs2_curfile[PATH_MAX + PATH_MAX] = {0};
+ 
+-static nand_ecclayout_t *mkyaffs2_oobinfo = NULL;
+-static int (*mkyaffs2_writechunk)(unsigned, unsigned, unsigned) = NULL;
++static nand_ecclayout_t *mkyaffs2_ecclayout = NULL;
+ 
+ static unsigned mkyaffs2_bufsize = 0;
+ static unsigned char *mkyaffs2_databuf = NULL;
+@@ -159,6 +173,10 @@
+ static struct mkyaffs2_fstree mkyaffs2_objtree = {0};
+ static struct list_head mkyaffs2_objtable[MKYAFFS2_OBJTABLE_SIZE];
+ 
++static int
++(*mkyaffs2_assemble_ptags) (unsigned char *, struct yaffs_ext_tags *,
++			    nand_ecclayout_t *, int) = NULL;
++
+ /*----------------------------------------------------------------------------*/
+ 
+ static struct mkyaffs2_obj *
+@@ -346,11 +364,12 @@
+ }
+ 
+ static ssize_t
+-mkyaffs2_tag2spare (unsigned char *spare, unsigned char *tag, size_t bytes)
++mkyaffs2_ptags2spare (unsigned char *spare, unsigned char *tag, size_t bytes,
++		      nand_ecclayout_t *ecclayout)
+ {
+ 	unsigned i;
+ 	size_t copied = 0;
+-	struct nand_oobfree *oobfree = mkyaffs2_oobinfo->oobfree;
++	struct nand_oobfree *oobfree = ecclayout->oobfree;
+ 
+ 	for (i = 0; i < MTD_MAX_OOBFREE_ENTRIES && copied < bytes; i++) {
+ 		size_t size = bytes - copied;
+@@ -370,108 +389,116 @@
+ 
+ /*----------------------------------------------------------------------------*/
+ 
+-static int 
+-mkyaffs2_yaffs1_writechunk (unsigned bytes, unsigned obj_id, unsigned chunk_id)
++static int
++mkyaffs2_assemble_ptags1(unsigned char *spare, struct yaffs_ext_tags *t,
++			 nand_ecclayout_t *ecclayout, int ecc)
+ {
+ 	ssize_t written;
+-	struct yaffs_ext_tags tag;
+-	struct yaffs_packed_tags1 pt;
+-	unsigned char *spare = mkyaffs2_databuf + mkyaffs2_chunksize;
++	struct yaffs_packed_tags1 pt1;
++	nand_ecclayout_t *l = ecclayout ? ecclayout : mkyaffs2_ecclayout;
+ 
+-	/* prepare the spare (oob) first */
+-	memset(&tag, 0, sizeof(struct yaffs_ext_tags));
++	memset(&pt1, 0xff, sizeof(struct yaffs_packed_tags1));
++	yaffs_pack_tags1(&pt1, t);
+ 
+-	tag.chunk_id = chunk_id;
+-	tag.serial_number = 1;	// double check
+-	tag.n_bytes = bytes;
+-	tag.obj_id = obj_id;
+-	tag.is_deleted = 0;	// double check
++	if (MKYAFFS2_ISENDIAN)
++		packedtags1_endian_convert(&pt1, 0);
+ 
+-	memset(&pt, 0xff, sizeof(struct yaffs_packed_tags1));
+-	yaffs_pack_tags1(&pt, &tag);
++	mkyaffs2_packedtags1_ecc(&pt1);
+ 
+-	if (MKYAFFS2_ISENDIAN)
+-		packedtags1_endian_convert(&pt, 0);
++	written = mkyaffs2_ptags2spare(spare, (unsigned char *)&pt1,
++				       sizeof(struct yaffs_packed_tags1), l);
+ 
+-#ifndef YAFFS_IGNORE_TAGS_ECC
+-	mkyaffs2_packedtags1_ecc(&pt);
+-#endif
++	written += sizeof(((struct yaffs_packed_tags1 *)0)->should_be_ff);
+ 
+-	/* write the spare (oob) into the buffer */
+-	memset(spare, 0xff, mkyaffs2_sparesize);
+-	written = mkyaffs2_tag2spare(spare, (unsigned char *)&pt,
+-				     sizeof(struct yaffs_packed_tags1));
+-	if (written != sizeof(struct yaffs_packed_tags1)) {
+-		MKYAFFS2_DEBUG("tag to spare failed for obj %u chunk %u",
+-				obj_id, chunk_id);
+-		return -1;
+-	}
++	return written < sizeof(struct yaffs_packed_tags1);
++}
+ 
+-	/* write a whole "chunk + spare" back to the image */
+-	written = safe_write(mkyaffs2_image_fd, 
+-			     mkyaffs2_databuf, mkyaffs2_bufsize);
+-	if (written != mkyaffs2_bufsize) {
+-		MKYAFFS2_DEBUG("write chunk failed for obj %u chunk %u: %s",
+-				obj_id, chunk_id, strerror(errno));
+-		return -1;
++static int
++mkyaffs2_assemble_ptags2(unsigned char *spare, struct yaffs_ext_tags *t,
++			 nand_ecclayout_t *ecclayout, int ecc)
++{
++	ssize_t written;
++	struct yaffs_packed_tags2 pt2;
++	nand_ecclayout_t *l = ecclayout ? ecclayout : mkyaffs2_ecclayout;
++
++	memset(&pt2, 0xff, sizeof(struct yaffs_packed_tags2));
++	yaffs_pack_tags2_tags_only(&pt2.t, t);
++
++	if (MKYAFFS2_ISENDIAN)
++		packedtags2_tagspart_endian_convert(&pt2);
++
++	if (ecc) {
++		yaffs_ecc_calc_other((unsigned char *)&pt2.t,
++				     sizeof(struct yaffs_packed_tags2_tags_only),
++				     &pt2.ecc);
++
++		if (MKYAFFS2_ISENDIAN)
++			packedtags2_eccother_endian_convert(&pt2);
+ 	}
+ 
+-	mkyaffs2_image_pages++;
++	written = mkyaffs2_ptags2spare(spare, (unsigned char *)&pt2,
++				       sizeof(struct yaffs_packed_tags2), l);
+ 
+-	return 0;
++	return written != sizeof(struct yaffs_packed_tags2);
+ }
+ 
+ static int
+-mkyaffs2_yaffs2_writechunk (unsigned bytes, unsigned obj_id, unsigned chunk_id)
++mkyaffs2_write_chunk (unsigned obj_id, unsigned chunk_id, unsigned bytes)
+ {
+ 	ssize_t written;
+-	struct yaffs_ext_tags tag;
+-	struct yaffs_packed_tags2 pt;
+ 	unsigned char *spare = mkyaffs2_databuf + mkyaffs2_chunksize;
++	struct yaffs_ext_tags tag;
+ 
+ 	/* prepare the spare (oob) first */
+ 	memset(&tag, 0, sizeof(struct yaffs_ext_tags));
+-	
++
++	/* common */
++	tag.obj_id = obj_id;
+ 	tag.chunk_id = chunk_id;
+-	tag.serial_number = 1;	// double check
+ 	tag.n_bytes = bytes;
+-	tag.obj_id = obj_id;
+-	tag.chunk_used = 1;
+-	tag.seq_number = YAFFS_LOWEST_SEQUENCE_NUMBER;
+ 
+-	memset(&pt, 0xff, sizeof(struct yaffs_packed_tags2));
+-	yaffs_pack_tags2_tags_only(&pt.t, &tag);
++	/* yaffs1 only */
++	tag.is_deleted = 0;
++	tag.serial_number = 1;
+ 
+-	if (MKYAFFS2_ISENDIAN)
+-		packedtags2_tagspart_endian_convert(&pt);
+-
+-#ifndef YAFFS_IGNORE_TAGS_ECC
+-	yaffs_ecc_calc_other((unsigned char *)&pt.t,
+-				sizeof(struct yaffs_packed_tags2_tags_only),
+-				&pt.ecc);
+-	if (MKYAFFS2_ISENDIAN)
+-		packedtags2_eccother_endian_convert(&pt);
+-#endif
+-
+-	/* write the spare (oob) into the buffer */
+-	memset(spare, 0xff, mkyaffs2_sparesize);
+-	written = mkyaffs2_tag2spare(spare, (unsigned char *)&pt,
+-				     sizeof(struct yaffs_packed_tags2));
+-	if (written != sizeof(struct yaffs_packed_tags2)) {
+-		MKYAFFS2_DEBUG("tag to spare failed for obj %u chunk %u",
+-				obj_id, chunk_id);
+-		return -1;
+-	}
+-
+-	/* write a whole "chunk + spare" back to the image */
+-	written = safe_write(mkyaffs2_image_fd,
+-			     mkyaffs2_databuf, mkyaffs2_bufsize);
+-	if (written != mkyaffs2_bufsize) {
+-		MKYAFFS2_DEBUG("write chunk failed for obj %u chunk %u: %s",
+-				obj_id, chunk_id, strerror(errno));
+-		return -1;
+-	}
++	/* yaffs2 only */
++	tag.chunk_used = 1;
++	tag.seq_number = YAFFS_LOWEST_SEQUENCE_NUMBER;
+ 
++  if(mkyaffs2_inband_tags==0)  //shanchun
++	{
++  	/* write the spare (oob) into the buffer */
++	  memset(spare, 0xff, mkyaffs2_sparesize);
++	  if (mkyaffs2_assemble_ptags(spare, &tag, NULL, 1)) {
++  		MKYAFFS2_DEBUG("tag to spare failed for obj %u chunk %u\n",
++  				obj_id, chunk_id);
++  		return -1;
++	  }
++
++	  /* write a whole "chunk + spare" back to the image */
++	  written = safe_write(mkyaffs2_image_fd,
++		  	     mkyaffs2_databuf, mkyaffs2_bufsize);
++	  if (written != mkyaffs2_bufsize) {
++		  MKYAFFS2_DEBUG("write chunk failed for obj %u chunk %u: %s\n",
++	  			obj_id, chunk_id, strerror(errno));
++  		return -1;
++	  }
++  }
++  else
++  { //inband_tags
++  	struct yaffs_packed_tags2 pt2;	  
++	  yaffs_pack_tags2_tags_only(&pt2.t, &tag);
++    memcpy(spare,&pt2.t,mkyaffs2_sparesize);
++    
++	  /* write a whole "chunk + spare" back to the image */
++	  written = safe_write(mkyaffs2_image_fd,
++		  	     mkyaffs2_databuf, mkyaffs2_bufsize);
++	  if (written != mkyaffs2_bufsize) {
++		  MKYAFFS2_DEBUG("write chunk failed for obj %u chunk %u: %s\n",
++	  			obj_id, chunk_id, strerror(errno));
++  		return -1;
++	  }
++  }
+ 	mkyaffs2_image_pages++;
+ 
+ 	return 0;
+@@ -488,7 +515,7 @@
+ 	memcpy(mkyaffs2_databuf, oh, sizeof(struct yaffs_obj_hdr));
+ 
+ 	/* write buffer */
+-	return mkyaffs2_writechunk(0xffff, obj->obj_id, 0);
++	return mkyaffs2_write_chunk(obj->obj_id, 0, 0xffff);
+ }
+ 
+ static int 
+@@ -515,7 +542,7 @@
+ 		}
+ 
+ 		/* write buffer */
+-		retval = mkyaffs2_writechunk(bytes, obj->obj_id, ++chunk);
++		retval = mkyaffs2_write_chunk(obj->obj_id, ++chunk, bytes);
+ 		if (retval) {
+ 			MKYAFFS2_DEBUG("error while writing file '%s': %s\n",
+ 					fpath, strerror(errno));
+@@ -552,7 +579,7 @@
+ 		break;
+ 	}
+ 
+-	MKYAFFS2_PRINT("\b\b\b[%c]", st);
++	MKYAFFS2_PRINTF("\b\b\b[%c]", st);
+ 	fflush(stdout);
+ }
+ 
+@@ -658,7 +685,6 @@
+ 
+ 		r = readlink((char *)fpath, oh.alias, sizeof(oh.alias));
+ 		if (r < 0) {
+-			MKYAFFS2_ERROR("%s to %s\n", fpath, oh.alias);
+ 			MKYAFFS2_ERROR("read symbol link failed: %s\n",
+ 					strerror(errno));
+ 			return -1;
+@@ -716,7 +742,7 @@
+ 	obj->obj_id = ++mkyaffs2_image_obj_id;
+ 
+ 	if (obj->obj_id > YAFFS_MAX_OBJECT_ID)
+-		MKYAFFS2_WARN("too many files\n");
++		MKYAFFS2_WARN("warning: too many files\n");
+ 
+ 	retval = mkyaffs2_write_oh(&oh, obj);
+ 
+@@ -727,7 +753,7 @@
+ }
+ 
+ static int
+-mkyaffs2_write_objtree (struct mkyaffs2_obj *obj)
++mkyaffs2_assemble_objtree (struct mkyaffs2_obj *obj)
+ {
+ 	int retval = 0;
+ 	struct stat s;
+@@ -801,7 +827,7 @@
+ 		if (obj->type == YAFFS_OBJECT_TYPE_DIRECTORY) {
+ 			list_for_each(p, &obj->children) {
+ 				child = list_entry(p, mkyaffs2_obj_t, siblings);
+-				retval = mkyaffs2_write_objtree(child);
++				retval = mkyaffs2_assemble_objtree(child);
+ 				if (retval)
+ 					break;
+ 			}
+@@ -889,23 +915,25 @@
+ 
+ 	/* stage 1: scanning direcotry */
+ 	snprintf(mkyaffs2_curfile, PATH_MAX, "%s", dirpath);
+-	MKYAFFS2_PRINT("stage 1: scanning directory '%s'... [*]",
++	MKYAFFS2_PRINTF("\n");
++	MKYAFFS2_PRINTF("stage 1: scanning directory '%s'... [*]",
+ 			mkyaffs2_curfile);
+ 
+ 	retval = mkyaffs2_scan_dir(mkyaffs2_objtree.root);
+ 	if (retval < 0)
+ 		goto free_and_out;
+ 
+-	MKYAFFS2_PRINT("\b\b\b[done]\nscanning complete, total %u objects.\n\n",
++	MKYAFFS2_PRINTF("\b\b\b[done]\nscanning complete, total objects: %u.\n",
+ 			mkyaffs2_objtree.objs);
+ 
+ 	/* stage 2: making a image */
+-	MKYAFFS2_PRINT("stage 2: creating image '%s'\n", imgfile);
++	MKYAFFS2_PRINTF("\n");
++	MKYAFFS2_PRINTF("stage 2: creating image '%s'\n", imgfile);
+ 
+ 	MKYAFFS2_PROGRESS_INIT();
+ 
+ 	snprintf(mkyaffs2_curfile, PATH_MAX, "%s", dirpath);
+-	retval = mkyaffs2_write_objtree(mkyaffs2_objtree.root);
++	retval = mkyaffs2_assemble_objtree(mkyaffs2_objtree.root);
+ 
+ free_and_out:
+ 	if (mkyaffs2_image_fd >= 0)
+@@ -927,6 +955,7 @@
+ 	MKYAFFS2_HELP("Usage: mkyaffs2 [-h|--help] [-e|--endian] [-v|--verbose]\n"
+ 		      "                [-p|--pagesize pagesize] [-s|sparesize sparesize]\n"
+ 		      "                [-o|--oobimg oobimage] [--all-root] [--yaffs-ecclayout]\n"
++		      "                [--nuc970-ecclayout][-i|--inband-tags]\n"
+ 		      "                dirname imgfile\n\n");
+ 	MKYAFFS2_HELP("Options:\n");
+ 	MKYAFFS2_HELP("  -h                 display this help message and exit.\n");
+@@ -939,20 +968,36 @@
+ 	MKYAFFS2_HELP("  -o oobimage        load external oob image file.\n");
+ 	MKYAFFS2_HELP("  --all-root         all files in the target system are owned by root.\n");
+ 	MKYAFFS2_HELP("  --yaffs-ecclayout  use yaffs oob scheme instead of the Linux MTD default.\n");
+-
++	MKYAFFS2_HELP("  --nuc970-ecclayout use nuc970 oob scheme instead of the Linux MTD default.\n");
++	MKYAFFS2_HELP("  -b nuc970-bch      The BCH algorithm is used to select the ECC algorithm \n"
++	        "                     for data protecting.\n" 
++	        "                     (0:BCH_T4(default)|1:BCH_T8|2:BCH_T12|3:BCH_T15|4:BCH_T24)\n");
++	MKYAFFS2_HELP("  --inband-tags     Using in-band tags.\n");	      
+ 	return -1;
+ }
+ 
+ /*----------------------------------------------------------------------------*/
++#define DEF_RESERVER_OOB_SIZE_FOR_MARKER 4
++static void nuc970_layout_oob_table (nand_ecclayout_t* pNandOOBTbl, int oobsize , int eccbytes )
++{		
++	  memset((char *)pNandOOBTbl,0,sizeof(nand_ecclayout_t));	  
++    pNandOOBTbl->eccbytes = eccbytes;
++            
++    pNandOOBTbl->oobavail = oobsize - DEF_RESERVER_OOB_SIZE_FOR_MARKER - eccbytes ;
++
++    pNandOOBTbl->oobfree[0].offset = DEF_RESERVER_OOB_SIZE_FOR_MARKER;  // Bad block marker size    
++    
++    pNandOOBTbl->oobfree[0].length = oobsize - (eccbytes + pNandOOBTbl->oobfree[0].offset);         
++}
+ 
+ int 
+ main (int argc, char *argv[])
+ {
+-	int retval;
++	int retval,indx;
+ 	char *dirpath = NULL, *imgfile = NULL, *oobfile = NULL;
+ 	
+ 	int option, option_index;
+-	static const char *short_options = "hvep:s:o:";
++	static const char *short_options = "hvep:s:onbi:";
+ 	static const struct option long_options[] = {
+ 		{"pagesize", 		required_argument, 	0, 'p'},
+ 		{"sparesize", 		required_argument, 	0, 's'},
+@@ -961,9 +1006,13 @@
+ 		{"verbose", 		no_argument, 		0, 'v'},
+ 		{"all-root",		no_argument,		0, '0'},
+ 		{"yaffs-ecclayout",	no_argument,		0, 'y'},
++		{"nuc970-ecclayout",	no_argument,		0, 'n'},
++		{"nuc970-bch",	required_argument,		0, 'b'},
++		{"inband-tags",	no_argument,		0, 'i'},
+ 		{"help", 		no_argument, 		0, 'h'},
+-	};
+-
++		{NULL,			no_argument,		0, '\0'},
++	}; 
++  
+ 	mkyaffs2_chunksize = DEFAULT_CHUNKSIZE;
+ 
+ 	while ((option = getopt_long(argc, argv, short_options,
+@@ -971,10 +1020,10 @@
+ 		switch (option) {
+ 		case 'p':
+ 			mkyaffs2_chunksize = strtoul(optarg, NULL, 10);
+-			break;
++			break;		
+ 		case 's':
+ 			mkyaffs2_sparesize = strtoul(optarg, NULL, 10);
+-			break;
++			break;			
+ 		case 'o':
+ 			oobfile = optarg;
+ 			break;
+@@ -986,10 +1035,19 @@
+ 			break;
+ 		case 'y':
+ 			mkyaffs2_flags |= MKYAFFS2_FLAGS_YAFFSECC;
+-			break;
++			break;			
+ 		case '0':
+ 			mkyaffs2_flags |= MKYAFFS2_FLAGS_ALLROOT;
+ 			break;
++		case 'n':
++			mkyaffs2_flags |= MKYAFFS2_FLAGS_NUC970ECC;			
++			break;			
++		case 'b':
++			mkyaffs2_nuc970bch = strtoul(optarg, NULL, 10);
++			break;		
++		case 'i':	
++			mkyaffs2_inband_tags = 1;
++			break;
+ 		case 'h':
+ 		default:
+ 			return mkyaffs2_helper();
+@@ -1002,35 +1060,70 @@
+ 	dirpath = argv[optind];
+ 	imgfile = argv[optind + 1];
+ 
+-	MKYAFFS2_PRINT("mkyaffs2 %s: image building tool for YAFFS2.\n",
++	MKYAFFS2_PRINTF("mkyaffs2 %s: image building tool for YAFFS2.\n",
+ 			YAFFS2UTILS_VERSION);
+ 
+ 	if (getuid() != 0) {
+ 		mkyaffs2_flags |= MKYAFFS2_FLAGS_NONROOT;
+-		MKYAFFS2_WARN("warning: non-root users.\n\n");
++		MKYAFFS2_WARN("warning: non-root users.\n");
++	}
++
++	/* load spare image if it is existed */
++	mkyaffs2_ecclayout = NULL;
++	if (oobfile) {
++		if (mkyaffs2_load_spare(oobfile) < 0) {
++			MKYAFFS2_ERROR("read oob image failed\n");
++			return -1;
++		}
++		mkyaffs2_ecclayout = &nand_oob_user;
++		/* FIXME: verify for the various ecc layout */
+ 	}
+ 
+ 	/* veridate the page size */
+-	mkyaffs2_writechunk = &mkyaffs2_yaffs2_writechunk;
++	mkyaffs2_assemble_ptags = &mkyaffs2_assemble_ptags2;
+ 	switch (mkyaffs2_chunksize) {
+ 	case 512:
+-		mkyaffs2_writechunk = &mkyaffs2_yaffs1_writechunk;
+-		if (oobfile == NULL)
+-			mkyaffs2_oobinfo = &nand_oob_16;
+ 		mkyaffs2_flags |= MKYAFFS2_FLAGS_YAFFS1;
++		mkyaffs2_assemble_ptags = &mkyaffs2_assemble_ptags1;
++		if (oobfile == NULL)
++			mkyaffs2_ecclayout = &nand_oob_16;
+ 		break;
+ 	case 2048:
+-		if (oobfile == NULL)
+-			mkyaffs2_oobinfo = MKYAFFS2_ISYAFFSECC ?
+-					   &yaffs_nand_oob_64 : &nand_oob_64;
++		if (mkyaffs2_ecclayout == NULL)
++		{
++			if(MKYAFFS2_ISNUC970ECC){
++				if(mkyaffs2_sparesize==0)
++          nuc970_layout_oob_table (&nuc970_oobTb, (mkyaffs2_chunksize>>5) , g_i32ParityNum[1][mkyaffs2_nuc970bch] );
++        else
++        	nuc970_layout_oob_table (&nuc970_oobTb, mkyaffs2_sparesize , g_i32ParityNum[1][mkyaffs2_nuc970bch] );
++        mkyaffs2_ecclayout = &nuc970_oobTb;
++			}else{
++				mkyaffs2_ecclayout = MKYAFFS2_ISYAFFSECC ?
++					     &yaffs_nand_oob_64 : &nand_oob_64;
++			}
++		}
+ 		break;
+ 	case 4096:
+ 	case 8192:
+ 	case 16384:
+ 		/* FIXME: The OOB scheme for 8192 and 16384 bytes */
+-		if (oobfile == NULL)
+-			mkyaffs2_oobinfo = MKYAFFS2_ISYAFFSECC ?
+-					   &yaffs_nand_oob_128 : &nand_oob_128;
++		if (mkyaffs2_ecclayout == NULL)
++		{			
++			if(MKYAFFS2_ISNUC970ECC){						
++				if(mkyaffs2_chunksize==4096) indx=2;
++				if(mkyaffs2_chunksize==8192) indx=3;
++				if(mkyaffs2_sparesize==0)					
++          nuc970_layout_oob_table (&nuc970_oobTb, (mkyaffs2_chunksize>>5) , g_i32ParityNum[indx][mkyaffs2_nuc970bch] );
++        else
++        	nuc970_layout_oob_table (&nuc970_oobTb,  mkyaffs2_sparesize , g_i32ParityNum[indx][mkyaffs2_nuc970bch] );        
++        
++        mkyaffs2_ecclayout = &nuc970_oobTb;           	
++		  }else{
++			  mkyaffs2_ecclayout = MKYAFFS2_ISYAFFSECC ?
++					     &yaffs_nand_oob_128 :
++					     &nand_oob_128;
++		  }
++	  }
+ 		break;
+ 	default:
+ 		MKYAFFS2_ERROR("%u bytes page size is NOT supported.\n",
+@@ -1048,33 +1141,26 @@
+ 		return -1;
+ 	}
+ 
+-	/* verify spare image if it is existed */
+-	if (oobfile) {
+-		if (mkyaffs2_load_spare(oobfile) < 0) {
+-			MKYAFFS2_ERROR("read oob image failed\n");
+-			return -1;
+-		}
+-		mkyaffs2_oobinfo = &nand_oob_user;
+-		/* FIXME: verify for the various ecc layout */
+-	}
+-
+ 	/* verify whether the input directory is valid */
+ 	if (strlen(dirpath) >= PATH_MAX || strlen(imgfile) >= PATH_MAX) {
+ 		MKYAFFS2_ERROR("directory or image path is too long ");
+ 		MKYAFFS2_ERROR("(max: %u characters).\n", PATH_MAX - 1);
+ 		return -1;
+ 	}
+-
++  if(mkyaffs2_inband_tags==1) 
++  {
++  	mkyaffs2_chunksize=mkyaffs2_chunksize-16;
++  	mkyaffs2_sparesize=16;
++  }
+ 
+ 	retval = mkyaffs2_create_image(dirpath, imgfile);
+ 	if (!retval) {
+-		MKYAFFS2_PRINT("%c\noperation complete,\n"
+-			       "%u objects in %u NAND pages.\n",
+-				MKYAFFS2_ISVERBOSE ? '\0' : '\n',
++		MKYAFFS2_PRINTF("\noperation complete,\n"
++				"%u objects in %u NAND pages.\n",
+ 				mkyaffs2_image_objs, mkyaffs2_image_pages);
+ 	}
+ 	else {
+-		MKYAFFS2_ERROR("operation incomplete,\n"
++		MKYAFFS2_ERROR("\noperation incomplete,\n"
+ 			       "image may be broken!!!\n");
+ 	}
+ 
+diff -Nru host-yaffs2utils-0.2.9/nand_ecclayout.h yaffs2utils/nand_ecclayout.h
+--- host-yaffs2utils-0.2.9/nand_ecclayout.h	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/nand_ecclayout.h	2019-12-19 12:52:45.443364053 +0800
+@@ -39,6 +39,39 @@
+ 	.oobfree	= {{.offset = 2, .length = 38}},
+ };
+ 
++
++//nuc970 2k page size
++static nand_ecclayout_t nuc970_oobTb = {
++	.eccbytes	= 32,
++	.eccpos		= {32,33,34,35,36,37,38,39,40, 41, 42, 43, 44, 45, 46, 47,
++			   48, 49, 50, 51, 52, 53, 54, 55,
++			   56, 57, 58, 59, 60, 61, 62, 63},
++	.oobfree	= {{.offset = 4, .length = 28}},
++	};
++typedef enum  {
++    eBCH_T4,
++    eBCH_T8,
++    eBCH_T12,
++    eBCH_T15,
++    eBCH_T24,
++    eBCH_CNT
++} E_BCHALGORITHM;
++
++typedef enum {
++    ePageSize_512,
++    ePageSize_2048,
++    ePageSize_4096,
++    ePageSize_8192,
++    ePageSize_CNT
++} E_PAGESIZE;
++
++static const int g_i32ParityNum[ePageSize_CNT][eBCH_CNT] = {
++    { 8,    15,     23,     29,     -1  },  // For 512
++    { 32,   60,     92,     116,    90  },  // For 2K
++    { 64,   120,    184,    232,    180 },  // For 4K
++    { 128,  240,    368,    464,    360 },  // For 8K
++};
++
+ static nand_ecclayout_t yaffs_nand_oob_64 = {
+ 	.eccbytes	= 24,
+ 	.eccpos		= {40, 41, 42, 43, 44, 45, 46, 47,
+diff -Nru host-yaffs2utils-0.2.9/unspare2.c yaffs2utils/unspare2.c
+--- host-yaffs2utils-0.2.9/unspare2.c	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/unspare2.c	2019-12-19 12:52:45.443364053 +0800
+@@ -42,39 +42,45 @@
+ 
+ #include "version.h"
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ #define UNSPARE2_FLAGS_ENDIAN           0x01
+ 
+ #define UNSPARE2_ISENDIAN       (unspare2_flags & UNSPARE2_FLAGS_ENDIAN)
+ 
+-#define UNSPARE2_PRINT(s, args...) \
++#define UNSPARE2_PRINTF(s, args...) \
+ 		do { \
+ 			fprintf(stdout, s, ##args); \
+ 			fflush(stdout); \
+ 		} while (0)
+ 
+-#define UNSPARE2_ERROR(s, args...) \
++#define UNSPARE2_ERROR_PRINTF(s, args...) \
+ 		do { \
+ 			fprintf(stderr, s, ##args); \
+ 			fflush(stderr); \
+ 		} while (0)
+ 
+-#define UNSPARE2_HELP(s, args...)	UNSPARE2_PRINT(s, ##args)
+-#define UNSPARE2_WARN(s, args...)	UNSPARE2_ERROR(s, ##args)
++#define UNSPARE2_HELP(s, args...) \
++		UNSPARE2_PRINTF(s, ##args)
++
++#define UNSPARE2_WARN(s, args...) \
++		UNSPARE2_ERROR_PRINTF(s, ##args)
++
++#define UNSPARE2_ERROR(s, args...) \
++		UNSPARE2_ERROR_PRINTF(s, ##args)
+ 
+ #ifdef _UNSPARE2_DEBUG
+-#define UNSPARE2_DEBUG(s, args...)	UNSPARE2_ERROR("%s: " s, \
+-						       __FUNCTION__, ##args)
++#define UNSPARE2_DEBUG(s, args...) \
++	UNSPARE2_ERROR_PRINTF("%s: " s, __FUNCTION__, ##args)
+ #else
+ #define UNSPARE2_DEBUG(s, args...)
+ #endif
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static unsigned unspare2_flags = 0;
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static void
+ unspare2_endian_convert (nand_ecclayout_t *oob)
+@@ -94,7 +100,7 @@
+ 	}
+ }
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static int
+ unspare2_dump (const char *devfile, const char *imgfile)
+@@ -144,7 +150,7 @@
+ 	return retval;
+ }
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static void
+ unspare2_helper (void)
+@@ -156,10 +162,10 @@
+ 	UNSPARE2_HELP("  -e  convert the endian differed from the local machine.\n");
+ }
+ 
+-/*---------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ int
+-main (int argc, char **argv)
++main (int argc, char *argv[])
+ {
+ 	int retval;
+ 	char *devpath, *imgpath;
+@@ -169,6 +175,7 @@
+ 	static const struct option long_options[] = {
+ 		{"help",	no_argument,	0, 'h'},
+ 		{"endian",	no_argument,	0, 'e'},
++		{NULL,		no_argument,	0, '\0'},
+ 	};
+ 
+ 	while ((option = getopt_long(argc, argv, short_options,
+@@ -195,7 +202,7 @@
+ 	devpath = argv[optind];
+ 	imgpath = argv[optind + 1];
+ 
+-	UNSPARE2_PRINT("unspare2 %s: OOB extracting tool for yaffs2utils\n",
++	UNSPARE2_PRINTF("unspare2 %s: OOB extracting tool for yaffs2utils\n",
+ 			YAFFS2UTILS_VERSION);
+ 
+ 	if (getuid() != 0)
+@@ -203,8 +210,9 @@
+ 
+ 	retval = unspare2_dump(devpath, imgpath);
+ 
++	UNSPARE2_PRINTF("\n");
+ 	if (!retval)
+-		printf("OOB info for %s was saved in %s\n", devpath, imgpath);
++		UNSPARE2_PRINTF("OOB info for %s was saved in %s\n", devpath, imgpath);
+ 	else
+ 		UNSPARE2_ERROR("failed");
+ 
+diff -Nru host-yaffs2utils-0.2.9/unyaffs2.c yaffs2utils/unyaffs2.c
+--- host-yaffs2utils-0.2.9/unyaffs2.c	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/unyaffs2.c	2019-12-19 12:52:45.443364053 +0800
+@@ -52,7 +52,7 @@
+ 
+ #include "version.h"
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ #define UNYAFFS2_OBJTABLE_SIZE	4096
+ #define UNYAFFS2_HARDLINK_MAX	127
+@@ -70,13 +70,17 @@
+ #define UNYAFFS2_ISYAFFSECC	(unyaffs2_flags & UNYAFFS2_FLAGS_YAFFSECC)
+ #define UNYAFFS2_ISVERBOSE	(unyaffs2_flags & UNYAFFS2_FLAGS_VERBOSE)
+ 
+-#define UNYAFFS2_PRINT(s, args...) \
++#define UNYAFFS2_PRINTF(s, args...) \
+ 		do { \
++			if (!UNYAFFS2_ISVERBOSE && UNYAFFS2_ISSHOWBAR) { \
++				unyaffs2_flags &= ~UNYAFFS2_FLAGS_SHOWBAR; \
++				fprintf(stderr, "\n"); \
++			} \
+ 			fprintf(stdout, s, ##args); \
+ 			fflush(stdout); \
+ 		} while (0)
+ 
+-#define UNYAFFS2_ERROR(s, args...) \
++#define UNYAFFS2_ERROR_PRINTF(s, args...) \
+ 		do { \
+ 			if (!UNYAFFS2_ISVERBOSE && UNYAFFS2_ISSHOWBAR) { \
+ 				unyaffs2_flags &= ~UNYAFFS2_FLAGS_SHOWBAR; \
+@@ -86,12 +90,18 @@
+ 			fflush(stderr); \
+ 		} while (0)
+ 
+-#define UNYAFFS2_HELP(s, args...)	UNYAFFS2_PRINT(s, ##args)
+-#define UNYAFFS2_WARN(s, args...)	UNYAFFS2_ERROR(s, ##args)
++#define UNYAFFS2_HELP(s, args...) \
++		UNYAFFS2_PRINTF(s, ##args)
++
++#define UNYAFFS2_WARN(s, args...) \
++		UNYAFFS2_ERROR_PRINTF(s, ##args)
++
++#define UNYAFFS2_ERROR(s, args...) \
++		UNYAFFS2_ERROR_PRINTF(s, ##args)
+ 
+ #ifdef _UNYAFFS2_DEBUG
+-#define UNYAFFS2_DEBUG(s, args...)	UNYAFFS2_ERROR("%s: " s, \
+-						       __FUNCTION__, ##args)
++#define UNYAFFS2_DEBUG(s, args...) \
++		UNYAFFS2_ERROR_PRINTF("%s: " s,  __FUNCTION__, ##args)
+ #else
+ #define UNYAFFS2_DEBUG(s, args...)
+ #endif
+@@ -99,7 +109,7 @@
+ #define UNYAFFS2_VERBOSE(s, args...) \
+ 		do { \
+ 			if (UNYAFFS2_ISVERBOSE) \
+-				UNYAFFS2_PRINT(s, ##args); \
++				UNYAFFS2_PRINTF(s, ##args); \
+ 		} while (0)
+ 
+ #define UNYAFFS2_PROGRESS_INIT() \
+@@ -116,7 +126,7 @@
+ 			} \
+ 		} while(0)
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ typedef struct unyaffs2_file_var {
+ 	loff_t file_size;
+@@ -178,8 +188,8 @@
+ 
+ typedef struct unyaffs2_specfile {
+ 	char *path;			/* file path */
+-	struct list_head list;		/* specified files list */
+ 	struct unyaffs2_obj *obj;	/* object */
++	struct list_head list;		/* specified files list */
+ } unyaffs2_specfile_t;
+ 
+ #ifdef _HAVE_MMAP
+@@ -189,7 +199,7 @@
+ } unyaffs2_mmap_t;
+ #endif
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static unsigned unyaffs2_chunksize = 0;
+ static unsigned unyaffs2_sparesize = 0;
+@@ -208,7 +218,7 @@
+ 
+ static LIST_HEAD(unyaffs2_specfile_list);	/* specfied files */
+ 
+-static nand_ecclayout_t *unyaffs2_oobinfo = NULL;
++static nand_ecclayout_t *unyaffs2_ecclayout = NULL;
+ 
+ static struct unyaffs2_fstree unyaffs2_objtree = {0};
+ static struct list_head unyaffs2_objtable[UNYAFFS2_OBJTABLE_SIZE];
+@@ -217,7 +227,11 @@
+ static struct unyaffs2_mmap unyaffs2_mmapinfo = {0};
+ #endif
+ 
+-/*-------------------------------------------------------------------------*/
++static void
++(*unyaffs2_extract_ptags) (struct yaffs_ext_tags *, unsigned char *,
++			   nand_ecclayout_t *, int) = NULL;
++
++/*----------------------------------------------------------------------------*/
+ 
+ static struct unyaffs2_obj *
+ unyaffs2_obj_alloc (void)
+@@ -251,7 +265,7 @@
+ 	free(obj);
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ /*
+  * hash table to look up objects
+@@ -328,7 +342,7 @@
+ 	}
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ /*
+  * fs tree for objects extraction.
+@@ -374,7 +388,7 @@
+ 	return unyaffs2_objtree_cleanup(fst->root);
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ /*
+  * specfied files
+@@ -460,7 +474,7 @@
+ 	}
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static int
+ unyaffs2_mkdir (const char *name, const mode_t mode)
+@@ -502,14 +516,15 @@
+ 	return p;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static size_t
+-unyaffs2_spare2tag (unsigned char *tag, unsigned char *spare, size_t bytes)
++unyaffs2_spare2ptags (unsigned char *tag, unsigned char *spare, size_t bytes,
++		      nand_ecclayout_t *ecclayout)
+ {
+ 	unsigned i;
+ 	size_t copied = 0;
+-	struct nand_oobfree *oobfree = unyaffs2_oobinfo->oobfree;
++	struct nand_oobfree *oobfree = ecclayout->oobfree;
+ 
+ 	for (i = 0; i < 8 && copied < bytes; i++) {
+ 		size_t size = bytes - copied;
+@@ -528,32 +543,69 @@
+ }
+ 
+ static void
+-unyaffs2_extract_packedtags (struct yaffs_ext_tags *tag, unsigned char *buf)
++unyaffs2_extract_ptags1 (struct yaffs_ext_tags *t, unsigned char *pt,
++			 nand_ecclayout_t *ecclayout, int ecc)
+ {
+-	if (UNYAFFS2_ISYAFFS1) {
+-		struct yaffs_packed_tags1 pt1;
++	struct yaffs_packed_tags1 pt1;
++	nand_ecclayout_t *l = ecclayout ? ecclayout : unyaffs2_ecclayout;
+ 
+-		memset(&pt1, 0xff, sizeof(struct yaffs_packed_tags1));
+-		unyaffs2_spare2tag((unsigned char *)&pt1, buf,
+-				   sizeof(struct yaffs_packed_tags1));
++	memset(&pt1, 0xff, sizeof(struct yaffs_packed_tags1));
++	unyaffs2_spare2ptags((unsigned char *)&pt1, pt,
++			     sizeof(struct yaffs_packed_tags1), l);
+ 
+-		if (UNYAFFS2_ISENDIAN)
+-			packedtags1_endian_convert(&pt1, 1);
++	if (UNYAFFS2_ISENDIAN)
++		packedtags1_endian_convert(&pt1, 1);
+ 
+-		yaffs_unpack_tags1(tag, &pt1);
+-	}
+-	else {
+-		struct yaffs_packed_tags2 pt2;
++	yaffs_unpack_tags1(t, &pt1);
++}
+ 
+-		memset(&pt2, 0xff, sizeof(struct yaffs_packed_tags2));
+-		unyaffs2_spare2tag((unsigned char *)&pt2, buf,
+-				   sizeof(struct yaffs_packed_tags2));
++static void
++unyaffs2_extract_ptags2 (struct yaffs_ext_tags *t, unsigned char *s,
++			 nand_ecclayout_t *ecclayout, int ecc)
++{
++	int result;
++	enum yaffs_ecc_result ecc_result = YAFFS_ECC_RESULT_NO_ERROR;
++	struct yaffs_ecc_other tag_ecc;
++	struct yaffs_packed_tags2 pt2;
++	nand_ecclayout_t *l = ecclayout ? ecclayout : unyaffs2_ecclayout;
++
++	memset(&pt2, 0xff, sizeof(struct yaffs_packed_tags2));
++	unyaffs2_spare2ptags((unsigned char *)&pt2, s,
++			     sizeof(struct yaffs_packed_tags2), l);
+ 
++	if (pt2.t.seq_number != 0xffffffff && ecc) {
+ 		if (UNYAFFS2_ISENDIAN)
+-			packedtags2_tagspart_endian_convert(&pt2);
++			packedtags2_eccother_endian_convert(&pt2);
+ 
+-		yaffs_unpack_tags2_tags_only(tag, &pt2.t);
++		yaffs_ecc_calc_other((unsigned char *)&pt2.t,
++				sizeof(struct yaffs_packed_tags2_tags_only),
++				&tag_ecc);
++
++		result = yaffs_ecc_correct_other((unsigned char *)&pt2.t,
++				sizeof(struct yaffs_packed_tags2_tags_only),
++				&pt2.ecc, &tag_ecc);
++
++		switch (result) {
++		case 0:
++			ecc_result = YAFFS_ECC_RESULT_NO_ERROR;
++			break;
++		case 1:
++			ecc_result = YAFFS_ECC_RESULT_FIXED;
++			break;
++		case -1:
++			ecc_result = YAFFS_ECC_RESULT_UNFIXED;
++			break;
++		default:
++			ecc_result = YAFFS_ECC_RESULT_UNKNOWN;
++		}
+ 	}
++
++	if (UNYAFFS2_ISENDIAN)
++		packedtags2_tagspart_endian_convert(&pt2);
++
++	yaffs_unpack_tags2_tags_only(t, &pt2.t);
++
++	t->ecc_result = ecc_result;
+ }
+ 
+ static inline int
+@@ -644,7 +696,7 @@
+ 	return 0;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static void
+ unyaffs2_format_filepath (char *path, size_t size, struct unyaffs2_obj *obj)
+@@ -750,7 +802,7 @@
+ 	return 0;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static inline void
+ unyaffs2_scan_img_status (unsigned status)
+@@ -772,24 +824,28 @@
+ 		break;
+ 	}
+ 
+-	UNYAFFS2_PRINT("\b\b\b[%c]", st);
++	UNYAFFS2_PRINTF("\b\b\b[%c]", st);
+ 	fflush(stdout);
+ }
+ 
+ static int
+ unyaffs2_scan_chunk (unsigned char *buffer, off_t offset)
+ {
++	struct yaffs_obj_hdr oh;
+ 	struct yaffs_ext_tags tag;
+ 	struct unyaffs2_obj *obj;
+-	struct yaffs_obj_hdr *oh;
+ 
+-	unyaffs2_extract_packedtags(&tag, buffer + unyaffs2_chunksize);
++	unyaffs2_extract_ptags(&tag, buffer + unyaffs2_chunksize, NULL, 1);
++	if (tag.ecc_result == YAFFS_ECC_RESULT_UNFIXED) {
++		UNYAFFS2_DEBUG("invalid page skipped @ offset %lu\n", offset);
++		return 0;
++	}
+ 
+ 	/* empty page? */
+ 	if (tag.obj_id <= YAFFS_OBJECTID_DELETED ||
+ 	    tag.obj_id == YAFFS_OBJECTID_SUMMARY ||
+-	    !tag.chunk_used) {
+-		UNYAFFS2_DEBUG("empty page skipped\n");
++	    tag.chunk_used == 0) {
++		UNYAFFS2_DEBUG("unused page skipped @ offset %lu\n", offset);
+ 		return 0;
+ 	}
+ 
+@@ -802,16 +858,23 @@
+ 			return -1;
+ 		}
+ 
+-		oh = (struct yaffs_obj_hdr *)buffer;
++		if (obj->valid) {
++			UNYAFFS2_DEBUG("skip duplicated object %u\n",
++				       tag.obj_id);
++			return -1;
++		}
+ 
++		memcpy(&oh, unyaffs2_databuf, sizeof(struct yaffs_obj_hdr));
+ 		if (UNYAFFS2_ISENDIAN)
+-			oh_endian_convert(oh);
++			oh_endian_convert(&oh);
+ 
+ 		/* extract oh to obj */
+-		unyaffs2_oh2obj(obj, oh);
++		unyaffs2_oh2obj(obj, &oh);
+ 		obj->obj_id = tag.obj_id;
+ 		obj->hdr_off = offset;
+ 		obj->valid = 1;
++
++		unyaffs2_image_objs++;
+ 	}
+ 	else if (tag.chunk_id == 1) {
+ 	/* the first data chunk of a object */
+@@ -832,12 +895,10 @@
+ static int
+ unyaffs2_scan_img (void)
+ {
+-	off_t offset = 0;
+-#ifdef _HAVE_MMAP
+-	size_t remains;
+-#else
++#ifndef _HAVE_MMAP
+ 	ssize_t reads;
+ #endif
++	off_t offset = 0, remains = 0;
+ 
+ 	if (unyaffs2_image_fd < 0) {
+ 		UNYAFFS2_DEBUG("bad file descriptor.\n");
+@@ -859,9 +920,11 @@
+ 		if (memcmp(unyaffs2_databuf, 
+ 		    unyaffs2_mmapinfo.addr + offset, unyaffs2_bufsize)) {
+ #else
++	remains = lseek(unyaffs2_image_fd, 0, SEEK_END);
+ 	offset = lseek(unyaffs2_image_fd, 0, SEEK_SET);
+-	while ((reads = safe_read(unyaffs2_image_fd,
+-				  unyaffs2_databuf, unyaffs2_bufsize)) != 0) {
++	while (remains >= unyaffs2_bufsize &&
++	       (reads = safe_read(unyaffs2_image_fd,
++		unyaffs2_databuf, unyaffs2_bufsize)) != 0) {
+ 		if (reads != unyaffs2_bufsize) {
+ #endif
+ 			/* parse image failed */
+@@ -873,18 +936,14 @@
+ 		if (!unyaffs2_isempty(unyaffs2_databuf, unyaffs2_bufsize))
+ 			unyaffs2_scan_chunk(unyaffs2_databuf, offset);
+ 
+-#if _HAVE_MMAP
+ 		offset += unyaffs2_bufsize;
+ 		remains -= unyaffs2_bufsize;
+-#else
+-		offset = lseek(unyaffs2_image_fd, 0, SEEK_CUR);
+-#endif
+ 	}
+ 
+ 	return 0;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static struct unyaffs2_obj*
+ unyaffs2_create_fakeroot (const char *path)
+@@ -933,10 +992,11 @@
+ 			obj = list_entry(p, unyaffs2_obj_t, hashlist);
+ 
+ 			parent = unyaffs2_objtable_find(obj->parent_id);
+-			if (parent && obj != parent) {
++			if (parent && obj != parent &&
++			    parent->type == YAFFS_OBJECT_TYPE_DIRECTORY) {
++				obj->parent_obj = parent;
+ 				list_add_tail(&obj->siblings,
+ 					      &parent->children);
+-				obj->parent_obj = parent;
+ 			}
+ 			unyaffs2_scan_img_status(++objs);
+ 		}
+@@ -973,7 +1033,7 @@
+ 	       unyaffs2_validate_objtree(unyaffs2_objtree.root);
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ #ifdef _HAVE_MMAP
+ static int
+@@ -987,9 +1047,6 @@
+ 
+ 	struct yaffs_ext_tags tag;
+ 
+-	if (fsize == 0)
+-		return creat(fpath, obj->mode);
+-
+ 	outfd = open(fpath, O_RDWR | O_CREAT | O_TRUNC, obj->mode);
+ 	if (outfd < 0) {
+ 		UNYAFFS2_DEBUG("cannot create file '%s'; %s\n",
+@@ -997,6 +1054,9 @@
+ 		return -1;
+ 	}
+ 
++	if (fsize == 0)
++		goto out;
++
+ 	/* stretch the file */
+ 	if (lseek(outfd, fsize - 1, SEEK_SET) < 0 ||
+ 	    safe_write(outfd, "", 1) != 1) {
+@@ -1014,12 +1074,18 @@
+ 		goto out;
+ 	}
+ 
++	if (obj->variant.file.file_head == ~(off_t)0) {
++		UNYAFFS2_DEBUG("invalid head offset of file  '%s'\n", fpath);
++		goto out;
++	}
++
+ 	addr += obj->variant.file.file_head;
+ 	curaddr = outaddr;
+ 	remains = fsize;
+ 
+ 	while (addr < endaddr && remains > 0) {
+-		unyaffs2_extract_packedtags(&tag, addr + unyaffs2_chunksize);
++		unyaffs2_extract_ptags(&tag, addr + unyaffs2_chunksize,
++				       NULL, 0);
+ 
+ 		written = remains < tag.n_bytes ? remains : tag.n_bytes;
+ 		memcpy(curaddr, addr, written);
+@@ -1061,6 +1127,11 @@
+ 		return -1;
+ 	}
+ 
++	if (obj->variant.file.file_head == ~(off_t)0) {
++		UNYAFFS2_DEBUG("invalid head offset of file  '%s'\n", fpath);
++		goto out;
++	}
++
+ 	lseek(fd, obj->variant.file.file_head, SEEK_SET);
+ 
+ 	/* read image until the size is reached */
+@@ -1073,9 +1144,9 @@
+ 			break;
+ 		}
+ 
+-		unyaffs2_extract_packedtags(&tag,
+-					    unyaffs2_databuf +
+-					    unyaffs2_chunksize);
++		unyaffs2_extract_ptags(&tag,
++				       unyaffs2_databuf + unyaffs2_chunksize,
++				       NULL, 0);
+ 
+ 		w = safe_write(outfd, unyaffs2_databuf, tag.n_bytes);
+ 		if (w != tag.n_bytes) {
+@@ -1303,12 +1374,13 @@
+ 	if (UNYAFFS2_ISENDIAN)
+ 		oh_endian_convert(&oh);
+ 
+-	unyaffs2_extract_packedtags(&tag,
+-				    unyaffs2_databuf + unyaffs2_chunksize);
+-
+-	if (unyaffs2_isempty(unyaffs2_databuf, unyaffs2_bufsize) ||
+-	    !tag.chunk_used || tag.chunk_id != 0 || tag.obj_id != obj->obj_id ||
+-	    oh.parent_obj_id != obj->parent_id) {
++	retval = unyaffs2_isempty(unyaffs2_databuf, unyaffs2_bufsize);
++	unyaffs2_extract_ptags(&tag, unyaffs2_databuf + unyaffs2_chunksize,
++			       NULL, 1);
++
++	if (retval || tag.ecc_result == YAFFS_ECC_RESULT_UNFIXED ||
++	    tag.chunk_used == 0 || tag.chunk_id != 0 ||
++	    tag.obj_id != obj->obj_id || oh.parent_obj_id != obj->parent_id) {
+ 		/* parse image failed */
+ 		UNYAFFS2_DEBUG("image corrupted @ offset %lu "
+ 			       "(is the same image)\n", obj->hdr_off);
+@@ -1380,7 +1452,7 @@
+ 	return retval;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static int
+ unyaffs2_load_spare (const char *oobfile)
+@@ -1407,7 +1479,7 @@
+ 	return retval;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static int
+ unyaffs2_extract_image (const char *imgfile, const char *dirpath)
+@@ -1416,25 +1488,25 @@
+ 	struct stat statbuf;
+ 	struct unyaffs2_obj *root;
+ 
++	unyaffs2_image_fd = open(imgfile, O_RDONLY);
++	if (unyaffs2_image_fd < 0) {
++		UNYAFFS2_ERROR("cannot open the image file: '%s': %s\n",
++				imgfile, strerror(errno));
++		return -1;
++	}
++
+ 	/* verify whether the input image is valid */
+-	if (stat(imgfile, &statbuf) < 0 || !S_ISREG(statbuf.st_mode)) {
++	if (fstat(unyaffs2_image_fd, &statbuf) < 0 ||
++	    !S_ISREG(statbuf.st_mode)) {
+ 		UNYAFFS2_ERROR("image is not a regular file: '%s'\n", imgfile);
+-		return -1;
++		goto free_and_out;
+ 	}
+ 
+ 	if ((statbuf.st_size % (unyaffs2_chunksize + unyaffs2_sparesize)) != 0)
+-	{
+-		UNYAFFS2_WARN("image size (%lu) is NOT a mutiple of %u + %u\n",
++		UNYAFFS2_WARN("warning: image size (%lu)"
++			      "is NOT a multiple of (%u + %u).\n",
+ 			      statbuf.st_size, unyaffs2_chunksize,
+ 			      unyaffs2_sparesize);
+-	}
+-
+-	unyaffs2_image_fd = open(imgfile, O_RDONLY);
+-	if (unyaffs2_image_fd < 0) {
+-		UNYAFFS2_ERROR("cannot open the image file: '%s': %s\n",
+-				imgfile, strerror(errno));
+-		return -1;
+-	}
+ 
+ #if _HAVE_MMAP
+ 	unyaffs2_mmapinfo.addr = mmap(NULL, statbuf.st_size, PROT_READ,
+@@ -1471,26 +1543,29 @@
+ 	unyaffs2_objtable_insert(root);
+ 
+ 	/* stage 1: scanning image */
+-	UNYAFFS2_PRINT("scanning image '%s'... [*]", imgfile);
++	UNYAFFS2_PRINTF("\n");
++	UNYAFFS2_PRINTF("scanning image '%s'... [*]", imgfile);
+ 
+ 	if (unyaffs2_scan_img() < 0)
+ 		goto exit_and_out;
+ 
+-	UNYAFFS2_PRINT("\b\b\b[done]\nscanning complete, total objects: %d\n\n",
++	UNYAFFS2_PRINTF("\b\b\b[done]\nscanning complete, total objects: %d\n",
+ 			unyaffs2_image_objs);
+ 
+-	UNYAFFS2_PRINT("building fs tree ... [*]");
++	UNYAFFS2_PRINTF("\n");
++	UNYAFFS2_PRINTF("building fs tree ... [*]");
+ 	if (unyaffs2_build_objtree() < 0) {
+ 		UNYAFFS2_ERROR("\nerror while building fs tree");
+ 		goto exit_and_out;
+ 	}
+ 
+-	UNYAFFS2_PRINT("\b\b\b[done]\n");
+-	UNYAFFS2_PRINT("building complete, total objects: %d\n\n",
++	UNYAFFS2_PRINTF("\b\b\b[done]\n");
++	UNYAFFS2_PRINTF("building complete, total objects: %d\n",
+ 			unyaffs2_objtree.objs);
+ 
+ 	/* stage 2: extracting image */
+-	UNYAFFS2_PRINT("extracting image into '%s'\n", dirpath);
++	UNYAFFS2_PRINTF("\n");
++	UNYAFFS2_PRINTF("extracting image into '%s'\n", dirpath);
+ 
+ 	UNYAFFS2_PROGRESS_INIT();
+ 	unyaffs2_image_objs = 0;
+@@ -1500,8 +1575,7 @@
+ 	retval = unyaffs2_extract_objtree(unyaffs2_objtree.root);
+ 
+ 	/* modify attr for objects in the objtree */
+-	UNYAFFS2_PRINT("%c\nmodify files attributes... [*]",
+-			UNYAFFS2_ISVERBOSE ? '\0' : '\n');
++	UNYAFFS2_PRINTF("\nmodify files attributes... [*]");
+ 
+ 	if (!list_empty(&unyaffs2_specfile_list)) {
+ 		struct list_head *p;
+@@ -1525,7 +1599,7 @@
+ 	}
+ 
+ 	if (!retval)
+-		UNYAFFS2_PRINT("\b\b\b[done]\n");
++		UNYAFFS2_PRINTF("\b\b\b[done]\n");
+ 
+ exit_and_out:
+ 	unyaffs2_objtree_exit(&unyaffs2_objtree);
+@@ -1539,7 +1613,7 @@
+ 	return retval;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ static int
+ unyaffs2_helper (void)
+@@ -1564,7 +1638,7 @@
+ 	return -1;
+ }
+ 
+-/*-------------------------------------------------------------------------*/
++/*----------------------------------------------------------------------------*/
+ 
+ int
+ main (int argc, char* argv[])
+@@ -1583,6 +1657,7 @@
+ 		{"verbose",		no_argument,	 	0, 'v'},
+ 		{"yaffs-ecclayout",	no_argument,	 	0, 'y'},
+ 		{"help",		no_argument, 		0, 'h'},
++		{NULL,			no_argument,		0, '\0'},
+ 	};
+ 
+ 	unyaffs2_chunksize = DEFAULT_CHUNKSIZE;
+@@ -1630,33 +1705,47 @@
+ 	imgfile = argv[optind];
+ 	dirpath = argv[optind + 1];
+ 
+-	UNYAFFS2_PRINT("unyaffs2 %s: image extracting tool for YAFFS2.\n",
++	UNYAFFS2_PRINTF("unyaffs2 %s: image extracting tool for YAFFS2.\n",
+ 			YAFFS2UTILS_VERSION);
+ 
+ 	if (getuid() != 0) {
+ 		unyaffs2_flags |= UNYAFFS2_FLAGS_NONROOT;
+-		UNYAFFS2_WARN("warning: non-root users.\n\n");
++		UNYAFFS2_WARN("warning: non-root users.\n");
++	}
++
++	/* load spare image if it is existed */
++	unyaffs2_ecclayout = NULL;
++	if (oobfile) {
++		if (unyaffs2_load_spare(oobfile) < 0) {
++			UNYAFFS2_ERROR("read oob image failed.\n");
++			return -1;
++		}
++		unyaffs2_ecclayout = &nand_oob_user;
++		/* FIXME: verify for the various ecc layout */
+ 	}
+ 
+ 	/* validate the page size */
++	unyaffs2_extract_ptags = &unyaffs2_extract_ptags2;
+ 	switch (unyaffs2_chunksize) {
+ 	case 512:
+ 		unyaffs2_flags |= UNYAFFS2_FLAGS_YAFFS1;
++		unyaffs2_extract_ptags = &unyaffs2_extract_ptags1;
+ 		if (oobfile == NULL)
+-			unyaffs2_oobinfo = &nand_oob_16;
++			unyaffs2_ecclayout = &nand_oob_16;
+ 		break;
+ 	case 2048:
+-		if (oobfile == NULL)
+-			unyaffs2_oobinfo = UNYAFFS2_ISYAFFSECC ?
+-					   &yaffs_nand_oob_64 : &nand_oob_64;
++		if (unyaffs2_ecclayout == NULL)
++			unyaffs2_ecclayout = UNYAFFS2_ISYAFFSECC ?
++					     &yaffs_nand_oob_64 : &nand_oob_64;
+ 		break;
+ 	case 4096:
+ 	case 8192:
+ 	case 16384:
+ 		/* FIXME: The OOB scheme for 8192 and 16384. */
+-		if (oobfile == NULL)
+-			unyaffs2_oobinfo = UNYAFFS2_ISYAFFSECC ?
+-					   &yaffs_nand_oob_128 : &nand_oob_128;
++		if (unyaffs2_ecclayout == NULL)
++			unyaffs2_ecclayout = UNYAFFS2_ISYAFFSECC ?
++					     &yaffs_nand_oob_128 :
++					     &nand_oob_128;
+ 		break;
+ 	default:
+ 		UNYAFFS2_ERROR("%u bytes page size is not supported.\n",
+@@ -1674,22 +1763,13 @@
+ 		return -1;
+ 	}
+ 
+-	if (oobfile) {
+-		if (unyaffs2_load_spare(oobfile) < 0) {
+-			UNYAFFS2_ERROR("read oob image failed.\n");
+-			return -1;
+-		}
+-		unyaffs2_oobinfo = &nand_oob_user;
+-		/* FIXME: verify for the various ecc layout */
+-	}
+-
+ 	retval = unyaffs2_extract_image(imgfile, dirpath);
+ 	if (!retval) {
+-		UNYAFFS2_PRINT("operation complete,\n"
+-			       "files were extracted into '%s'.\n", dirpath);
++		UNYAFFS2_PRINTF("\noperation complete,\n"
++				"files were extracted into '%s'.\n", dirpath);
+ 	}
+ 	else {
+-		UNYAFFS2_ERROR("operation incomplete,\n"
++		UNYAFFS2_ERROR("\n\noperation incomplete,\n"
+ 			       "files contents may be broken!!!\n");
+ 	}
+ 
+diff -Nru host-yaffs2utils-0.2.9/version.h yaffs2utils/version.h
+--- host-yaffs2utils-0.2.9/version.h	2019-12-19 12:52:34.827663925 +0800
++++ yaffs2utils/version.h	2019-12-19 12:52:45.443364053 +0800
+@@ -19,6 +19,6 @@
+ #ifndef __YAFFS2UTILS_VERSION_H__
+ #define __YAFFS2UTILS_VERSION_H__
+ 
+-#define YAFFS2UTILS_VERSION	"0.2.9"
++#define YAFFS2UTILS_VERSION	"0.2.9_20120815"
+ 
+ #endif
