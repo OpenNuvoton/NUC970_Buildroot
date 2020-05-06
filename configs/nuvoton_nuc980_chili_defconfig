@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot 2016.11.1-gb7c7ac1 Configuration
+# Buildroot 2016.11.1-g9a143ee-dirty Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 
