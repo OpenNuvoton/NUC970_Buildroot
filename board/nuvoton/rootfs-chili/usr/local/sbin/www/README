@@ -1,0 +1,3 @@
+1. Put led.html to target rootfs /usr/local/sbin/www/
+2. Put led.cgi to target rootfs /usr/local/sbin/www/cgi-bin/
+3. Open browser http://xxx.xxx.xxx.xxx/led.html

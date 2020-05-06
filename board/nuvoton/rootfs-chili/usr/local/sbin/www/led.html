@@ -1,0 +1,29 @@
+<html>
+    
+<head>
+	<title>Control LED by Web</title>
+</head>
+
+<body>
+	<form action="cgi-bin/led.cgi" method="GET">
+        <table width="300" border="1">
+            <tr>
+                <td>LED1</td>
+                <td>LED2</td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="radio" name="LED1" value="1">ON <br>
+                    <input type="radio" name="LED1" value="0" checked >OFF
+                </td>
+                <td>
+                    <input type="radio" name="LED2" value="1">ON <br>
+                    <input type="radio" name="LED2" value="0" checked >OFF
+                </td>
+            </tr>
+        </table>
+        <br>
+        <input type="submit" value="Submit" />
+    </form>
+</body>
+</html>

@@ -1,0 +1,17 @@
+#!/bin/sh
+/bin/mount -t proc none /proc
+/bin/mount -t sysfs sysfs /sys
+/bin/mount -t ramfs /tmp
+/bin/mount -t ramfs /mnt
+#/bin/mkdir /mnt/pts
+#/bin/mount -t devpts devpts /dev/pts
+/bin/echo > /dev/mdev.seq
+/bin/echo /sbin/mdev > /proc/sys/kernel/hotplug
+/sbin/mdev -s
+ifconfig eth0 192.168.0.100
+route add default gw 192.168.0.100
+mkdir -p /var/log/lighttpd/
+/usr/sbin/lighttpd start -f /usr/local/sbin/lighttpd.conf
+
+
+
