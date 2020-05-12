@@ -1,0 +1,87 @@
+<html>
+    
+<head>
+	<title>Control IO by Web</title>
+
+<script type="text/javascript" src="jquery-3.5.1.js"></script>
+
+</head>
+
+<body>
+
+<div id="led_content">
+	<form id="led_form" action="cgi-bin/led.cgi" method="GET">
+		<table width="300" border="1">
+			<tr>
+				<td>LED1</td>
+				<td>LED2</td>
+            </tr>
+            <tr>
+                <td>
+                    <input type="radio" id="LED1" name="LED1" value="1">ON <br>
+                    <input type="radio" id="LED1" name="LED1" value="0" checked>OFF
+                </td>
+                <td>
+                    <input type="radio" id="LED2" name="LED2" value="1">ON <br>
+                    <input type="radio" id="LED2" name="LED2" value="0"checked>OFF
+                </td>
+            </tr>
+        </table>
+        <br>
+        <input type="submit" id="led_submit" value="Submit" />
+    </form>
+</div>
+
+<div id="key_content">
+	<form id="key_form" action="cgi-bin/key.cgi" method="GET">
+		<table width="300" border="1">
+			<tr>
+				<td>KEY1</td>
+			</tr>
+			<tr>
+                <td>
+					<input type="radio" id="KEY1" name="KEY1" value="1">ON <br>
+					<input type="radio" id="KEY1" name="KEY1" value="0" checked>OFF
+                </td>
+			</tr>
+        </table>
+        <br>
+    </form>
+</div>
+
+<script type="text/javascript">
+	$(document).ready(function() {
+		window.setInterval(function() {
+			key_autoload();
+		}, 300);
+
+	}); //END $(document).ready()
+
+	var frm = $('#led_form');
+	frm.submit(function(e){
+		e.preventDefault();                
+		$.ajax({
+			type: frm.attr('method'),
+			url: frm.attr('action'),
+			data: frm.serialize(),
+			success: function(data){
+				$('#led_content').replacewith(data);
+			}
+		});
+	});
+
+	var key_frm = $('#key_form');
+	function key_autoload(){
+		$.ajax({
+			type: key_frm.attr('method'),
+			url: key_frm.attr('action'),
+			success: function(data){
+				$('#key_content').html(data);
+			}
+		});
+	}
+
+</script>
+
+</body>
+</html>

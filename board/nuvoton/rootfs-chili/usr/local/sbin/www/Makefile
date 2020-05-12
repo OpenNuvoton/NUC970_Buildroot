@@ -3,12 +3,17 @@
 CC := arm-linux-gcc
 STRIP := arm-linux-strip
 
-TARGET = led.cgi
-SRCS := led_cgi.c
+LED_TARGET = led.cgi
+LED_SRCS := led_cgi.c
+
+KEY_TARGET = key.cgi
+KEY_SRCS := key_cgi.c
 
 all: 
-	$(CC) -static $(SRCS) -o $(TARGET)
-	$(STRIP) $(TARGET) 
+	$(CC) -static $(LED_SRCS) -o $(LED_TARGET)
+	$(CC) -static $(KEY_SRCS) -o $(KEY_TARGET)
+	$(STRIP) $(LED_TARGET) 
+	$(STRIP) $(KEY_TARGET) 
 
 clean:
 	rm -f *.o 
@@ -17,6 +22,7 @@ clean:
 	rm -f *.map
 	rm -f temp
 	rm -f *.img
-	rm -f $(TARGET)	
+	rm -f $(LED_TARGET)	
+	rm -f $(KEY_TARGET)	
 	rm -f *.gdb
 	rm -f *.bak
