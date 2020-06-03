@@ -1,0 +1,9 @@
+#!/bin/sh
+export TSLIB_CONFFILE=/etc/ts.conf
+export TSLIB_TSDEVICE=/dev/input/event0
+export TSLIB_CALIBFILE=/etc/pointercal
+export LD_LIBRARY_PATH=/lib/ts/
+/sbin/mdev -s
+ts_calibrate
+SimpleDemo &
+

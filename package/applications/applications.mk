@@ -41,6 +41,7 @@ SUBDIRS=	demos/ebi \
 BENCHMARK_SUBDIRS=benchmark/netperf-2.6.0
 YAFFS2_DIRS=yaffs2utils
 PYTHON=Python-2.7.9
+EMWIN=emWin
 
 MINIGUI_LIB_SUBDIRS=minigui/libminigui-gpl-3.0.12
 MINIGUI_RES_SUBDIRS=minigui/minigui-res-be-3.0.12
@@ -68,6 +69,15 @@ define APPLICATIONS_BUILD_CMDS
 			( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
 		done; \
 	fi
+
+        @if grep -q "APPLICATIONS_BUILD_EMWIN=y" $(@D)/../../../.config; then \
+		for subdir in $(EMWIN)/Sample/GUIDemo ; do \
+			( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
+		done; \
+		for subdir in $(EMWIN)/Sample/SimpleDemo ; do \
+                        ( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
+                done; \
+        fi
 
 	@if grep -q "APPLICATIONS_BUILD_MINIGUI=y" $(@D)/../../../.config; then \
 		for subdir in $(MINIGUI_LIB_SUBDIRS) ; do \

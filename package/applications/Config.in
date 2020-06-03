@@ -39,6 +39,8 @@ config APPLICATIONS_BUILD_DEMOS
 
 config APPLICATIONS_BUILD_PYTHON
 	bool "Python-2.7.9"
+config APPLICATIONS_BUILD_EMWIN
+	bool "EmWin"
 
 #config APPLICATIONS_BUILD_QT
 #        bool "QT-everywhere-opensource-src-4.8.5"
