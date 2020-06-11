@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot 2016.11.1-gc88ba49 Configuration
+# Buildroot 2016.11.1-gd57bd48-dirty Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 
@@ -854,7 +854,7 @@ BR2_PACKAGE_QT5_JSCORE_AVAILABLE=y
 # BR2_PACKAGE_PPS_TOOLS is not set
 # BR2_PACKAGE_READ_EDID is not set
 # BR2_PACKAGE_RFKILL is not set
-# BR2_PACKAGE_RNG_TOOLS is not set
+BR2_PACKAGE_RNG_TOOLS=y
 # BR2_PACKAGE_RPI_USERLAND is not set
 # BR2_PACKAGE_RS485CONF is not set
 # BR2_PACKAGE_RTL8188EU is not set
@@ -1463,7 +1463,7 @@ BR2_PACKAGE_CANFESTIVAL_ARCH_SUPPORTS=y
 #
 # BR2_PACKAGE_APR is not set
 # BR2_PACKAGE_APR_UTIL is not set
-# BR2_PACKAGE_ARGP_STANDALONE is not set
+BR2_PACKAGE_ARGP_STANDALONE=y
 # BR2_PACKAGE_ARMADILLO is not set
 # BR2_PACKAGE_ATF is not set
 # BR2_PACKAGE_BDWGC is not set
