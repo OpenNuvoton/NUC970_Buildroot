@@ -72,10 +72,10 @@ define APPLICATIONS_BUILD_CMDS
 
         @if grep -q "APPLICATIONS_BUILD_EMWIN=y" $(@D)/../../../.config; then \
 		for subdir in $(EMWIN)/Sample/GUIDemo ; do \
-			( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
+			( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- LDFLAGS="-L../../Lib -lNUemWin -lm -L./tslib -lts -ldl -pthread" ) || exit 1; \
 		done; \
 		for subdir in $(EMWIN)/Sample/SimpleDemo ; do \
-                        ( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- ) || exit 1; \
+                        ( cd $(@D)/$$subdir && $(MAKE) CROSS=arm-linux- LDFLAGS="-L../../Lib -lNUemWin -lm -L./tslib -lts -ldl -pthread" ) || exit 1; \
                 done; \
         fi
 
