@@ -5,6 +5,33 @@
 
 <script type="text/javascript" src="jquery-3.5.1.js"></script>
 
+<style type="text/css">
+div#led_content{
+	position: fixed;
+	left:510px;
+	top:20px;
+}
+
+div#key_content{
+	position: fixed;
+	left:20px;
+	top:20px;
+}
+
+input[type="submit"] {
+    position: fixed;
+	left:750px;
+	top:100px;
+}
+
+img {
+  position: fixed;
+  left: 40px;
+  top: 95px;
+}
+
+</style>
+
 </head>
 
 <body>
@@ -23,13 +50,17 @@
                 </td>
                 <td>
                     <input type="radio" id="LED2" name="LED2" value="1">ON <br>
-                    <input type="radio" id="LED2" name="LED2" value="0"checked>OFF
+                    <input type="radio" id="LED2" name="LED2" value="0" checked>OFF
                 </td>
             </tr>
         </table>
         <br>
         <input type="submit" id="led_submit" value="Submit" />
     </form>
+</div>
+
+<div id="ledimg_content">
+	<img id="led_img" src="LED_1_off_2_off.jpg">
 </div>
 
 <div id="key_content">
@@ -65,7 +96,7 @@
 			url: frm.attr('action'),
 			data: frm.serialize(),
 			success: function(data){
-				$('#led_content').replacewith(data);
+				$('#ledimg_content').html(data);
 			}
 		});
 	});

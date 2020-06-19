@@ -125,41 +125,21 @@ int main(void)
 		fclose(fp);
 	}
 	
+	printf("<div id=\"ledimg_content\">\n");
 
-	printf("<div id=\"led_content\">\n");
-	printf("<form id=\"led_form\" method=\"GET\">\n");
-	printf("<table width=\"300\" border=\"1\">\n");
-	printf("<tr>\n");
-	printf("<td>LED1</td>\n");
-	printf("<td>LED2</td>\n");
-	printf("</tr>\n");
+	if((led1 == 0) && (led2 == 0)){	
+		printf("<img id=\"led_img\" src=\"LED_1_off_2_off.jpg\">\n");
+	}
+	else if((led1 == 1) && (led2 == 0)){	
+		printf("<img id=\"led_img\" src=\"LED_1_on_2_off.jpg\">\n");
+	}
+	else if((led1 == 0) && (led2 == 1)){	
+		printf("<img id=\"led_img\" src=\"LED_1_off_2_on.jpg\">\n");
+	}
+	else if((led1 == 1) && (led2 == 1)){	
+		printf("<img id=\"led_img\" src=\"LED_1_on_2_on.jpg\">\n");
+	}
 
-	printf("<tr>\n");	
-	printf("<td>\n");
-	if(led1){
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"1\" checked>ON <br>\n");
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"0\">OFF\n");
-	}
-	else{
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"1\">ON <br>\n");
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"0\" checked>OFF\n");
-	}
-	printf("</td>\n");
-	printf("<td>\n");
-	if(led2){
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"1\" checked>ON <br>\n");
-		printf("<input type=\"radio\" id=\"LED1\" name=\"LED1\" value=\"0\">OFF\n");
-	}
-	else{
-		printf("<input type=\"radio\" id=\"LED2\" name=\"LED2\" value=\"1\">ON <br>\n");
-		printf("<input type=\"radio\" id=\"LED2\" name=\"LED2\" value=\"0\" checked>OFF\n");
-	}
-	printf("</td>\n");
-	printf("</tr>\n");
-	printf("</table>\n");
-	printf("<br>\n");
-	printf("<input type=\"submit\" id=\"led_submit\" value=\"Submit\" />\n");
-    printf("</form>\n");
     printf("</drv>\n");
 
 	return 0;

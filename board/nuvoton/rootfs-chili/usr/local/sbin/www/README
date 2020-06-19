@@ -1,3 +1,4 @@
 1. Put ioctl.html and jquery-3.5.1.js to target rootfs /usr/local/sbin/www/
-2. Put led.cgi and key.cgi to target rootfs /usr/local/sbin/www/cgi-bin/
-3. Open browser http://xxx.xxx.xxx.xxx/ioctrl.html
+2. Put LED*.jpg to target rootfs rootfs /usr/local/sbin/www/
+3. Put led.cgi and key.cgi to target rootfs /usr/local/sbin/www/cgi-bin/
+4. Open browser http://xxx.xxx.xxx.xxx/ioctrl.html
