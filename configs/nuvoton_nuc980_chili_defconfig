@@ -1,6 +1,6 @@
 #
 # Automatically generated file; DO NOT EDIT.
-# Buildroot 2016.11.1-g9a143ee-dirty Configuration
+# Buildroot 2016.11.1-g6ea0451 Configuration
 #
 BR2_HAVE_DOT_CONFIG=y
 
@@ -698,7 +698,7 @@ BR2_PACKAGE_GETTEXT=y
 #
 # Graphic applications
 #
-# BR2_PACKAGE_FSWEBCAM is not set
+BR2_PACKAGE_FSWEBCAM=y
 
 #
 # glmark2 needs an OpenGL or an openGL ES and EGL backend provided by mesa3d
@@ -1177,8 +1177,19 @@ BR2_PACKAGE_LIBGPG_ERROR_SYSCFG="arm-unknown-linux-gnueabi"
 # BR2_PACKAGE_CAIROMM is not set
 # BR2_PACKAGE_EXIV2 is not set
 # BR2_PACKAGE_FONTCONFIG is not set
-# BR2_PACKAGE_FREETYPE is not set
-# BR2_PACKAGE_GD is not set
+BR2_PACKAGE_FREETYPE=y
+BR2_PACKAGE_GD=y
+# BR2_PACKAGE_GD_ANNOTATE is not set
+# BR2_PACKAGE_GD_GD2COPYPAL is not set
+# BR2_PACKAGE_GD_GD2TOGIF is not set
+# BR2_PACKAGE_GD_GD2TOPNG is not set
+# BR2_PACKAGE_GD_GDCMPGIF is not set
+# BR2_PACKAGE_GD_GDPARTTOPNG is not set
+# BR2_PACKAGE_GD_GDTOPNG is not set
+# BR2_PACKAGE_GD_GIFTOGD2 is not set
+# BR2_PACKAGE_GD_PNGTOGD is not set
+# BR2_PACKAGE_GD_PNGTOGD2 is not set
+# BR2_PACKAGE_GD_WEBPNG is not set
 # BR2_PACKAGE_GDK_PIXBUF is not set
 # BR2_PACKAGE_GIFLIB is not set
 
@@ -1194,7 +1205,11 @@ BR2_PACKAGE_LIBGPG_ERROR_SYSCFG="arm-unknown-linux-gnueabi"
 # BR2_PACKAGE_IJS is not set
 # BR2_PACKAGE_IMLIB2 is not set
 # BR2_PACKAGE_JASPER is not set
-# BR2_PACKAGE_JPEG is not set
+BR2_PACKAGE_JPEG=y
+BR2_PACKAGE_LIBJPEG=y
+# BR2_PACKAGE_JPEG_TURBO is not set
+BR2_PACKAGE_HAS_JPEG=y
+BR2_PACKAGE_PROVIDES_JPEG="libjpeg"
 # BR2_PACKAGE_KMSXX is not set
 # BR2_PACKAGE_LCMS2 is not set
 # BR2_PACKAGE_LIBART is not set
@@ -1233,7 +1248,7 @@ BR2_PACKAGE_LIBGPG_ERROR_SYSCFG="arm-unknown-linux-gnueabi"
 # libgtk3 needs an OpenGL or an OpenGL-EGL/wayland backend
 #
 # BR2_PACKAGE_LIBMNG is not set
-# BR2_PACKAGE_LIBPNG is not set
+BR2_PACKAGE_LIBPNG=y
 # BR2_PACKAGE_LIBQRENCODE is not set
 # BR2_PACKAGE_LIBRAW is not set
 # BR2_PACKAGE_LIBRSVG is not set
