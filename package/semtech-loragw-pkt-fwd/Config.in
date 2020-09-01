@@ -1,0 +1,5 @@
+config BR2_PACKAGE_SEMTECH_LORAGW_PKT_FWD
+	bool "Semtech LoRa GW packet forwarder"
+	select BR2_PACKAGE_SEMTECH_LIBLORAGW
+	help
+	  https://github.com/Lora-net/packet_forwarder

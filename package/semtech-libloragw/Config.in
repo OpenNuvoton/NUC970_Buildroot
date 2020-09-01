@@ -1,0 +1,11 @@
+config BR2_PACKAGE_SEMTECH_LIBLORAGW
+	bool "Semtech LoRa GW library"
+	help
+	  https://github.com/Lora-net/lora_gateway
+
+config BR2_PACKAGE_LIBLORAGW_SPIDEV_PATH
+	string "Specify the SPIDEV path"
+	default "/dev/spidev1.0"
+	depends on BR2_PACKAGE_SEMTECH_LIBLORAGW
+	help
+	  Specify spidev path

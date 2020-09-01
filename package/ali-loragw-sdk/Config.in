@@ -1,0 +1,19 @@
+config BR2_PACKAGE_ALI_LORAGW_SDK
+	bool "Ali LoRaGW SDK"
+	help
+	  More detail. See https://help.aliyun.com/document_detail/97091.html
+
+config BR2_PACKAGE_ALI_LORAGW_SDK_PRODUCT_KEY
+        string "Specify Product Key"
+        default "a1TGu0u0sby"
+        depends on BR2_PACKAGE_ALI_LORAGW_SDK
+
+config BR2_PACKAGE_ALI_LORAGW_SDK_DEVICE_NAME
+        string "Specify Device Name"
+        default "d896e0fff010b2b2"
+        depends on BR2_PACKAGE_ALI_LORAGW_SDK
+
+config BR2_PACKAGE_ALI_LORAGW_SDK_DEVICE_SECRET
+        string "Specify Device Secret"
+        default "Zft6eLli2E6kJJLyKIPCWTHw6ohZzKFS"
+        depends on BR2_PACKAGE_ALI_LORAGW_SDK

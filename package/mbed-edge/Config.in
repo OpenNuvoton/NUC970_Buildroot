@@ -1,0 +1,5 @@
+config BR2_PACKAGE_MBED_EDGE
+	bool "Mbed edge"
+	select BR2_DOXYGEN
+	help
+	  https://github.com/ARMmbed/mbed-edge

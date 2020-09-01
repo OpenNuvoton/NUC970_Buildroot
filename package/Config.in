@@ -1428,6 +1428,14 @@ menu "Miscellaneous"
 	source "package/xutil_util-macros/Config.in"
 endmenu
 
+menu "LoRaWAN Gateway"
+	source "package/semtech-libloragw/Config.in"
+	source "package/semtech-loragw-pkt-fwd/Config.in"
+	source "package/ali-loragw-sdk/Config.in"
+        source "package/mbed-edge/Config.in"
+	source "package/mbed-edge-examples/Config.in"
+endmenu
+
 menu "Networking applications"
 	source "package/aiccu/Config.in"
 	source "package/aircrack-ng/Config.in"
