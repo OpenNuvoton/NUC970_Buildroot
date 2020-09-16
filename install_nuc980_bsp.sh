@@ -227,7 +227,7 @@ do
         ps aux|awk '$2=='$pid' {print $0}'|grep $pid > /dev/null
 done
 
-find $letter -type d|xargs chmod 755
+find $letter/nuc980bsp -type d|xargs chmod 755
 if [ -z $SUDO_USER ];then
         chown -R $USER:$USER $letter/nuc980bsp;
 else
