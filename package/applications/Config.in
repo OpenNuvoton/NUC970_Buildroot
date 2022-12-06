@@ -73,6 +73,35 @@ config NUC980_APPLICATIONS_BUILD_YAFFS2UTILS
 
 endif #BR2_PACKAGE_NUC980_APPLICATIONS
 
-#endmenu
+config NUC980_APPLICATIONS_BUILD_ALLXON
+        bool "Allxon Service"
+	select NUC980_APPLICATIONS_BUILD_ALLXON_POWERCYCLING
+        help
+          Allxon provides remote edge AI device management solutions with In-Band and Out-Of-Band services to make monitoring, maintenance, management, deployment, and version updating easy on edge AI device
+          fleets.
+          Allxon helps save businesses time and money on high on-site operational costs while maintaining business continuity.
+          Enable this option to activate Allxon services on your embedded device.
+          Select jffs2 root file system settings.
+          This service will not be activated by default after booting. You will need to register with Allxon using the device serial number.
+          Contact Allxon for the device serial number at support@allxon.com. 
+
+if NUC980_APPLICATIONS_BUILD_ALLXON
+
+config NUC980_APPLICATIONS_BUILD_ALLXON_IHV_INFO
+        string "Manufacturer"
+        help
+          Enter the manufacturer's details to activate Allxon services on this device.
+
+          You may also leave this empty and proceed by pressing [enter]
+
+config NUC980_APPLICATIONS_BUILD_ALLXON_POWERCYCLING
+        bool "Power Cycling"
+        help
+          Allxon swiftDR for Power Cycling is a powerful Out-Of-Band disaster recovery tool that helps you instantly resolve system errors and unresponsive devices by remotely powering OFF and back ON your
+          edge AI systems.
+          Enable this option to add the Allxon power cycling plugin onto your embedded device.
+          Allxon power cycling plugin uses PC08 and PC09 to access the device's power button and reset button.
+
+endif
 
 endif
